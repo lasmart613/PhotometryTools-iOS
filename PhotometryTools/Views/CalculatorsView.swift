@@ -7,10 +7,16 @@ struct CalculatorItem: Identifiable, Hashable {
     let systemImage: String
 }
 
-/// Native stub hub for P0 photometry calculators.
-/// Implementations land in a later increment; this list matches the Android inventory.
+/// Native photometry calculator hub. HTML copies stay available from the TSP
+/// Home WebView (`calculators_menu.html` and the individual pages).
 struct CalculatorsView: View {
     private let items: [CalculatorItem] = [
+        CalculatorItem(
+            id: "fluence",
+            title: "Fluence",
+            subtitle: "Energy density (J/cm²) — QA / Android Fluence path",
+            systemImage: "bolt.fill"
+        ),
         CalculatorItem(
             id: "density",
             title: "Density",
@@ -39,26 +45,50 @@ struct CalculatorsView: View {
 
     var body: some View {
         NavigationStack {
-            List(items) { item in
-                NavigationLink(value: item) {
-                    Label {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.title)
-                                .font(.headline)
-                            Text(item.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+            List {
+                Section {
+                    ForEach(items) { item in
+                        NavigationLink(value: item) {
+                            Label {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.title)
+                                        .font(.headline)
+                                    Text(item.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: item.systemImage)
+                            }
+                            .padding(.vertical, 4)
                         }
-                    } icon: {
-                        Image(systemName: item.systemImage)
                     }
-                    .padding(.vertical, 4)
+                } footer: {
+                    Text("Native forms. Bundled HTML calculators stay available from Home (TSP shell).")
                 }
             }
             .navigationTitle("Calculators")
             .navigationDestination(for: CalculatorItem.self) { item in
-                CalculatorStubView(item: item)
+                destination(for: item)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func destination(for item: CalculatorItem) -> some View {
+        switch item.id {
+        case "fluence":
+            DensityCalculatorView(initialMode: .fluence, title: "Fluence")
+        case "density":
+            DensityCalculatorView(initialMode: .fluence, title: "Density")
+        case "wavelength":
+            WavelengthCalculatorView()
+        case "duty-cycle":
+            DutyCycleCalculatorView()
+        case "avg-power":
+            AveragePowerCalculatorView()
+        default:
+            DensityCalculatorView(initialMode: .fluence)
         }
     }
 }

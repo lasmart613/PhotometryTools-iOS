@@ -25,8 +25,8 @@ Related inventory (Android screens, Supabase contracts, P0/P1/P2): [Photometry_T
 Signed-out: native email/password login (magic link and password reset send email only).  
 Signed-in: three-tab shell.
 
-- **Home** — `WKWebView` loading bundled `PhotometryTools/Resources/assets/index.html` (TSP dashboard from totalservicepro-web). Falls back to `placeholder.html` if the entry file is missing.
-- **Calculators** — native SwiftUI stub hub (Density, Wavelength, Duty Cycle, Average Power).
+- **Home** — `WKWebView` loading bundled `PhotometryTools/Resources/assets/index.html` (TSP dashboard from totalservicepro-web). Falls back to `placeholder.html` if the entry file is missing. In-page calculator links still open the bundled HTML calculators.
+- **Calculators** — native SwiftUI photometry calculators (Fluence, Density, Wavelength, Duty Cycle, Average Power). Formulas match the bundled HTML.
 - **Settings** — version/build, sign out, biometric-unlock stub, Supabase config status.
 
 ## Secrets setup (no keys in git)
@@ -117,6 +117,26 @@ The injected `window.Android` shim keeps session methods and adds:
 
 Session injection (`tsp-auth-token` / `restoreSession` / `?_s=`) is unchanged.
 
+## Native photometry calculators
+
+The **Calculators** tab is native SwiftUI (not a WebView). Math lives in `PhotometryTools/Calculators/PhotometryMath.swift` and is written to match the bundled HTML:
+
+| Hub item | HTML source | Formula / behavior |
+|---|---|---|
+| Fluence | `density_calculator.html` (fluence mode) and legacy Android `fluence.html` | `J/cm² = Energy (J) ÷ Area (cm²)` |
+| Density | `density_calculator.html` | Same fluence math, plus CW irradiance `W/cm² = Power (W) ÷ Area` and pulsed `E×Hz / Area` or `fluence×Hz` |
+| Wavelength | `wavelength.html` | `Δ% = (E₂/HD1₂) ÷ (E₁/HD1₁) × 100`, VBeam table interpolate, then filter correction (nm) |
+| Duty Cycle | `duty_cycle.html` | `% = Pulse width ÷ Period × 100`; Period = width + off-time **or** `1000 / PPS` |
+| Average Power | `avgpower.html` | `W = Energy (J) × Hz`; reverse `J = W ÷ Hz` (`1 J = 1000 mJ`) |
+
+Spot area uses millimeters ÷ 100 to get cm² (`π × (d÷2)² ÷ 100`, `s² ÷ 100`, `L × W ÷ 100`). Diameter / side pickers are 2–30 mm (HTML defaults: 15 mm circular, 10 mm rectangular).
+
+Validation copy matches the HTML toasts (empty energy, invalid pulse width, Off-Time **or** PPS, pulse wider than `1/PPS`, missing VBeam readings). Results update live when inputs are valid; **Calculate** shows the same error strings. Copy / Share is available on a completed result.
+
+`calculators_menu.html` and the individual HTML pages stay in the bundle for the TSP Home WebView. This tab does not replace those links.
+
+Check table + formula samples with `node Scripts/verify-calculator-parity.mjs`.
+
 ## P0 parity (this slice)
 
 1. WKWebView shell: JS bridge, Keychain session, `restoreSession` / `?_s=` equivalent.
@@ -124,8 +144,9 @@ Session injection (`tsp-auth-token` / `restoreSession` / `?_s=`) is unchanged.
 3. Home dashboard HTML (signed-in only).
 4. Settings About version/build + sign out.
 5. ATS / HTTPS to Supabase (plus the CDN hosts the HTML already uses).
+6. Native photometry calculators (Fluence, Density, Wavelength, Duty Cycle, Average Power).
 
-Still later: schedule/report CRUD polish, native calculators, onboarding gate, StoreKit, full LocalAuthentication prompt.
+Still later: schedule/report CRUD polish, onboarding gate, StoreKit, full LocalAuthentication prompt.
 
 ## Out of scope
 
@@ -142,7 +163,8 @@ PhotometryTools.xcodeproj/     Xcode project + shared scheme + supabase-swift SP
 PhotometryTools/
   PhotometryToolsApp.swift     SwiftUI @main
   ContentView.swift            Home / Calculators / Settings tabs
-  Views/                       Login, root gate, Home WKWebView, calculators, Settings
+  Views/                       Login, root gate, Home WKWebView, native calculators, Settings
+  Calculators/                 Photometry math + VBeam wavelength table (HTML parity)
   Auth/                        Keychain session, supabase-swift sign-in/out
   Config/AppConfig.swift       Reads example-backed plist / xcconfig keys
   Supabase/                    SupabaseClient factory (KeychainLocalStorage)
@@ -150,6 +172,8 @@ PhotometryTools/
   Resources/assets/            Synced TSP HTML/CSS/JS + placeholder fallback
   Info.plist                   Merged keys (SUPABASE_* from xcconfig)
 Scripts/sync-web-assets.sh     Refresh assets from totalservicepro-web
+Scripts/verify-calculator-parity.mjs   HTML vs native table/formula check
+Scripts/secret-scan.sh         Fail if secrets landed in git
 Config.example.plist
 Secrets.xcconfig.example
 ```

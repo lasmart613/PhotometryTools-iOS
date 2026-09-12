@@ -12,7 +12,13 @@
 		A00000000000000000000032 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* HomeView.swift */; };
 		A00000000000000000000033 /* TSPWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* TSPWebView.swift */; };
 		A00000000000000000000034 /* CalculatorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000014 /* CalculatorsView.swift */; };
-		A00000000000000000000035 /* CalculatorStubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000015 /* CalculatorStubView.swift */; };
+		A000000000000000000000B0 /* PhotometryMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A0 /* PhotometryMath.swift */; };
+		A000000000000000000000B1 /* VBeamWavelengthTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A1 /* VBeamWavelengthTable.swift */; };
+		A000000000000000000000B2 /* CalculatorFormSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A2 /* CalculatorFormSupport.swift */; };
+		A000000000000000000000B3 /* DensityCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A3 /* DensityCalculatorView.swift */; };
+		A000000000000000000000B4 /* WavelengthCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A4 /* WavelengthCalculatorView.swift */; };
+		A000000000000000000000B5 /* DutyCycleCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A5 /* DutyCycleCalculatorView.swift */; };
+		A000000000000000000000B6 /* AveragePowerCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A6 /* AveragePowerCalculatorView.swift */; };
 		A00000000000000000000036 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000016 /* SettingsView.swift */; };
 		A00000000000000000000037 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000017 /* AppConfig.swift */; };
 		A00000000000000000000038 /* TSPSupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000018 /* TSPSupabaseClient.swift */; };
@@ -42,7 +48,13 @@
 		A00000000000000000000012 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A00000000000000000000013 /* TSPWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TSPWebView.swift; sourceTree = "<group>"; };
 		A00000000000000000000014 /* CalculatorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorsView.swift; sourceTree = "<group>"; };
-		A00000000000000000000015 /* CalculatorStubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorStubView.swift; sourceTree = "<group>"; };
+		A000000000000000000000A0 /* PhotometryMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotometryMath.swift; sourceTree = "<group>"; };
+		A000000000000000000000A1 /* VBeamWavelengthTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VBeamWavelengthTable.swift; sourceTree = "<group>"; };
+		A000000000000000000000A2 /* CalculatorFormSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorFormSupport.swift; sourceTree = "<group>"; };
+		A000000000000000000000A3 /* DensityCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DensityCalculatorView.swift; sourceTree = "<group>"; };
+		A000000000000000000000A4 /* WavelengthCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WavelengthCalculatorView.swift; sourceTree = "<group>"; };
+		A000000000000000000000A5 /* DutyCycleCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DutyCycleCalculatorView.swift; sourceTree = "<group>"; };
+		A000000000000000000000A6 /* AveragePowerCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AveragePowerCalculatorView.swift; sourceTree = "<group>"; };
 		A00000000000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A00000000000000000000017 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		A00000000000000000000018 /* TSPSupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TSPSupabaseClient.swift; sourceTree = "<group>"; };
@@ -107,6 +119,7 @@
 				A00000000000000000000010 /* PhotometryToolsApp.swift */,
 				A00000000000000000000011 /* ContentView.swift */,
 				A0000000000000000000000A /* Views */,
+				A00000000000000000000023 /* Calculators */,
 				A00000000000000000000021 /* Auth */,
 				A0000000000000000000000B /* Config */,
 				A0000000000000000000000C /* Supabase */,
@@ -126,7 +139,11 @@
 				A00000000000000000000013 /* TSPWebView.swift */,
 				A00000000000000000000053 /* LoginView.swift */,
 				A00000000000000000000014 /* CalculatorsView.swift */,
-				A00000000000000000000015 /* CalculatorStubView.swift */,
+				A000000000000000000000A2 /* CalculatorFormSupport.swift */,
+				A000000000000000000000A3 /* DensityCalculatorView.swift */,
+				A000000000000000000000A4 /* WavelengthCalculatorView.swift */,
+				A000000000000000000000A5 /* DutyCycleCalculatorView.swift */,
+				A000000000000000000000A6 /* AveragePowerCalculatorView.swift */,
 				A00000000000000000000016 /* SettingsView.swift */,
 			);
 			path = Views;
@@ -157,6 +174,15 @@
 				A00000000000000000000055 /* BiometricSettings.swift */,
 			);
 			path = Auth;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000023 /* Calculators */ = {
+			isa = PBXGroup;
+			children = (
+				A000000000000000000000A0 /* PhotometryMath.swift */,
+				A000000000000000000000A1 /* VBeamWavelengthTable.swift */,
+			);
+			path = Calculators;
 			sourceTree = "<group>";
 		};
 		A00000000000000000000022 /* PDF */ = {
@@ -282,7 +308,13 @@
 				A00000000000000000000032 /* HomeView.swift in Sources */,
 				A00000000000000000000033 /* TSPWebView.swift in Sources */,
 				A00000000000000000000034 /* CalculatorsView.swift in Sources */,
-				A00000000000000000000035 /* CalculatorStubView.swift in Sources */,
+				A000000000000000000000B0 /* PhotometryMath.swift in Sources */,
+				A000000000000000000000B1 /* VBeamWavelengthTable.swift in Sources */,
+				A000000000000000000000B2 /* CalculatorFormSupport.swift in Sources */,
+				A000000000000000000000B3 /* DensityCalculatorView.swift in Sources */,
+				A000000000000000000000B4 /* WavelengthCalculatorView.swift in Sources */,
+				A000000000000000000000B5 /* DutyCycleCalculatorView.swift in Sources */,
+				A000000000000000000000B6 /* AveragePowerCalculatorView.swift in Sources */,
 				A00000000000000000000036 /* SettingsView.swift in Sources */,
 				A00000000000000000000037 /* AppConfig.swift in Sources */,
 				A00000000000000000000038 /* TSPSupabaseClient.swift in Sources */,
