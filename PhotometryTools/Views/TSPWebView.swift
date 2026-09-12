@@ -5,12 +5,14 @@ import WebKit
 /// localStorage `tsp-auth-token`, `restoreSession(...)`, and optional `?_s=`.
 struct TSPWebView: UIViewRepresentable {
     @EnvironmentObject private var auth: AuthService
+    @EnvironmentObject private var biometric: BiometricSettings
+    @EnvironmentObject private var unlock: BiometricUnlockController
 
     var resourceName: String = "index"
     var subdirectory: String? = "assets"
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(auth: auth)
+        Coordinator(auth: auth, biometric: biometric, unlock: unlock)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -42,14 +44,32 @@ struct TSPWebView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.auth = auth
+        context.coordinator.biometric = biometric
+        context.coordinator.unlock = unlock
+        context.coordinator.syncBiometricFlags(
+            enabled: biometric.isEnabled,
+            canUse: biometric.canEvaluate
+        )
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var auth: AuthService
+        var biometric: BiometricSettings
+        var unlock: BiometricUnlockController
         weak var webView: WKWebView?
 
-        init(auth: AuthService) {
+        init(auth: AuthService, biometric: BiometricSettings, unlock: BiometricUnlockController) {
             self.auth = auth
+            self.biometric = biometric
+            self.unlock = unlock
+        }
+
+        func syncBiometricFlags(enabled: Bool, canUse: Bool) {
+            let js = """
+            window.__TSP_BIOMETRIC_ENABLED__ = \(enabled ? "true" : "false");
+            window.__TSP_CAN_BIOMETRIC__ = \(canUse ? "true" : "false");
+            """
+            webView?.evaluateJavaScript(js, completionHandler: nil)
         }
 
         func bootstrapScript() -> WKUserScript {
@@ -58,8 +78,8 @@ struct TSPWebView: UIViewRepresentable {
                     sessionJSON: auth.sessionJSON,
                     anonKey: auth.anonKey ?? "",
                     supabaseURL: AppConfig.supabaseURL.absoluteString,
-                    biometricEnabled: BiometricSettings.isEnabled,
-                    canUseBiometric: BiometricSettings.canEvaluate
+                    biometricEnabled: biometric.isEnabled,
+                    canUseBiometric: biometric.canEvaluate
                 ),
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: true
@@ -87,19 +107,22 @@ struct TSPWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            guard let json = auth.sessionJSON, !json.isEmpty else { return }
-            let escaped = Self.escapeForSingleQuotedJS(json)
-            let js = """
-            (function(){
-              try {
-                var raw = '\(escaped)';
-                window.__TSP_STORED_SESSION__ = raw;
-                try { localStorage.setItem('tsp-auth-token', raw); } catch (e) {}
-                if (typeof restoreSession === 'function') { restoreSession(raw); }
-              } catch (e) {}
-            })();
-            """
-            webView.evaluateJavaScript(js, completionHandler: nil)
+            Task { @MainActor in
+                syncBiometricFlags(enabled: biometric.isEnabled, canUse: biometric.canEvaluate)
+                guard let json = auth.sessionJSON, !json.isEmpty else { return }
+                let escaped = Self.escapeForSingleQuotedJS(json)
+                let js = """
+                (function(){
+                  try {
+                    var raw = '\(escaped)';
+                    window.__TSP_STORED_SESSION__ = raw;
+                    try { localStorage.setItem('tsp-auth-token', raw); } catch (e) {}
+                    if (typeof restoreSession === 'function') { restoreSession(raw); }
+                  } catch (e) {}
+                })();
+                """
+                webView.evaluateJavaScript(js, completionHandler: nil)
+            }
         }
 
         func webView(
@@ -207,7 +230,9 @@ struct TSPWebView: UIViewRepresentable {
             case "showToast":
                 auth.lastMessage = text
             case "setBiometricEnabled":
-                BiometricSettings.isEnabled = text == "true" || text == "1"
+                let enabled = text == "true" || text == "1"
+                biometric.setEnabled(enabled)
+                syncBiometricFlags(enabled: biometric.isEnabled, canUse: biometric.canEvaluate)
             case "openUrl":
                 if let url = URL(string: text) {
                     UIApplication.shared.open(url)
@@ -217,7 +242,11 @@ struct TSPWebView: UIViewRepresentable {
                     webView?.goBack()
                 }
             case "showLoginPopup":
-                await auth.signOut()
+                // Do not wipe Keychain or sign out (Android cancel could).
+                // Offer the password path on the lock screen if biometric is on.
+                if auth.isSignedIn && biometric.isEnabled {
+                    unlock.requestPasswordFallback()
+                }
             case "getManualUrl":
                 let path = spec["storage_path"] as? String ?? spec["storagePath"] as? String ?? text
                 do {
@@ -369,6 +398,14 @@ struct TSPWebView: UIViewRepresentable {
                 }
                 return invoke(type, spec);
               }
+              document.addEventListener('DOMContentLoaded', function() {
+                try {
+                  var loginChk = document.getElementById('enableBiometric');
+                  if (loginChk) loginChk.checked = !!window.__TSP_BIOMETRIC_ENABLED__;
+                  var settingsChk = document.getElementById('biometricLogin');
+                  if (settingsChk) settingsChk.checked = !!window.__TSP_BIOMETRIC_ENABLED__;
+                } catch (e) {}
+              });
               window.Android = {
                 saveSession: function(json) {
                   window.__TSP_STORED_SESSION__ = json;

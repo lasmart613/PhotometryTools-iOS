@@ -37,6 +37,9 @@ final class AuthService: ObservableObject {
         isConfigured = AppConfig.isAnonKeyConfigured
         sessionJSON = SessionKeychain.load()
         isSignedIn = TSPSessionJSON.tokens(from: sessionJSON ?? "") != nil
+        if let json = sessionJSON {
+            userEmail = TSPSessionJSON.email(from: json)
+        }
     }
 
     func bootstrap() async {
@@ -93,7 +96,7 @@ final class AuthService: ObservableObject {
             lastMessage = error.localizedDescription
         }
         clearLocalSession()
-        BiometricSettings.isEnabled = false
+        BiometricSettings.shared.setEnabled(false)
     }
 
     /// Magic-link stub — sends OTP email; deep-link completion is P1.
@@ -132,6 +135,9 @@ final class AuthService: ObservableObject {
         do {
             try SessionKeychain.save(json)
             sessionJSON = json
+            if let email = TSPSessionJSON.email(from: json) {
+                userEmail = email
+            }
             isSignedIn = true
         } catch {
             lastMessage = error.localizedDescription
@@ -141,8 +147,27 @@ final class AuthService: ObservableObject {
     /// Called from `Android.clearSession`.
     func applyWebClearSession() {
         clearLocalSession()
-        BiometricSettings.isEnabled = false
+        BiometricSettings.shared.setEnabled(false)
         Task { try? await client?.auth.signOut() }
+    }
+
+    /// Password re-auth for the biometric lock screen. Failure leaves Keychain alone.
+    @discardableResult
+    func reauthenticate(email: String, password: String) async -> Bool {
+        lastMessage = nil
+        guard let client else {
+            lastMessage = "Supabase is not configured. Copy Secrets.xcconfig.example locally."
+            return false
+        }
+
+        do {
+            let response = try await client.auth.signIn(email: email, password: password)
+            persist(session: response)
+            return true
+        } catch {
+            lastMessage = error.localizedDescription
+            return false
+        }
     }
 
     private func persist(session: Session) {

@@ -15,4 +15,6 @@ struct HomeView: View {
 #Preview {
     HomeView()
         .environmentObject(AuthService.shared)
+        .environmentObject(BiometricSettings.shared)
+        .environmentObject(BiometricUnlockController.shared)
 }

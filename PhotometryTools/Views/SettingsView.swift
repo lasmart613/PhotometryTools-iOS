@@ -2,7 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var auth: AuthService
-    @State private var biometricEnabled = BiometricSettings.isEnabled
+    @EnvironmentObject private var biometric: BiometricSettings
+    @State private var biometricEnabled = false
+    @State private var isUpdatingBiometric = false
 
     private var shortVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
@@ -34,15 +36,18 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Toggle("Biometric unlock (stub)", isOn: $biometricEnabled)
+                    Toggle(biometric.biometryName + " unlock", isOn: $biometricEnabled)
+                        .disabled((!biometric.canEvaluate && !biometric.isEnabled) || isUpdatingBiometric)
                         .onChange(of: biometricEnabled) { _, newValue in
-                            BiometricSettings.isEnabled = newValue
+                            Task { await applyBiometricToggle(newValue) }
                         }
-                    Text("Stores the preference and reports \(BiometricSettings.biometryName) availability (\(BiometricSettings.canEvaluate ? "available" : "not available")). The LocalAuthentication prompt is P1.")
+                    Text(biometricHelpText)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } header: {
                     Text("Security")
+                } footer: {
+                    Text("Opt-in only. A cold launch never prompts unless this is on. Cancel or a failed Face ID / Touch ID attempt does not sign you out.")
                 }
 
                 Section("Identifiers") {
@@ -69,6 +74,45 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .onAppear {
+                biometricEnabled = biometric.isEnabled
+            }
+            .onChange(of: biometric.isEnabled) { _, newValue in
+                if biometricEnabled != newValue {
+                    biometricEnabled = newValue
+                }
+            }
+        }
+    }
+
+    private var biometricHelpText: String {
+        if !biometric.canEvaluate {
+            return "\(biometric.biometryName) is not available on this device. The preference stays off."
+        }
+        if biometric.isEnabled {
+            return "When you open the app (or return from the background), \(biometric.biometryName) or your device passcode is required before the signed-in tabs appear. You can also use your account password. The Keychain session is kept until you sign out."
+        }
+        return "Off by default. Turn on to require \(biometric.biometryName) before showing the signed-in app."
+    }
+
+    private func applyBiometricToggle(_ enabled: Bool) async {
+        guard enabled != biometric.isEnabled else { return }
+        isUpdatingBiometric = true
+        defer { isUpdatingBiometric = false }
+
+        if enabled {
+            let result = await biometric.confirmEnrollment()
+            switch result {
+            case .success:
+                biometric.setEnabled(true)
+                biometricEnabled = true
+            case .canceled, .failed, .unavailable:
+                biometric.setEnabled(false)
+                biometricEnabled = false
+            }
+        } else {
+            biometric.setEnabled(false)
+            biometricEnabled = false
         }
     }
 }
@@ -76,4 +120,5 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environmentObject(AuthService.shared)
+        .environmentObject(BiometricSettings.shared)
 }

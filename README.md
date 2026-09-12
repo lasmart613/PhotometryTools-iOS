@@ -27,7 +27,7 @@ Signed-in: three-tab shell.
 
 - **Home** — `WKWebView` loading bundled `PhotometryTools/Resources/assets/index.html` (TSP dashboard from totalservicepro-web). Falls back to `placeholder.html` if the entry file is missing. In-page calculator links still open the bundled HTML calculators.
 - **Calculators** — native SwiftUI photometry calculators (Fluence, Density, Wavelength, Duty Cycle, Average Power). Formulas match the bundled HTML.
-- **Settings** — version/build, sign out, biometric-unlock stub, Supabase config status.
+- **Settings** — version/build, sign out, opt-in Face ID / Touch ID unlock, Supabase config status.
 
 ## Secrets setup (no keys in git)
 
@@ -78,7 +78,7 @@ Confirmed against Photometry_Tools `MainActivity` (main + inventory):
 1. Native store is Keychain (Android: `SharedPreferences` `TSPPrefs` / `storedSession`).
 2. On each page, write `localStorage['tsp-auth-token']` and call `restoreSession(...)`.
 3. In-page navigation uses `?_s=` = base64(JSON of `access_token` + `refresh_token`).
-4. JS bridge is named `Android` (`saveSession`, `clearSession`, `getStoredSession`, biometric stubs) so existing HTML keeps working.
+4. JS bridge is named `Android` (`saveSession`, `clearSession`, `getStoredSession`, `setBiometricEnabled` / `isBiometricEnabled` / `canUseBiometric`) so existing HTML Settings stay in sync with native.
 
 `WKWebView` injects `TSP_CONFIG` + the `Android` shim at document start, then calls `restoreSession` on `didFinish`.
 
@@ -137,6 +137,19 @@ Validation copy matches the HTML toasts (empty energy, invalid pulse width, Off-
 
 Check table + formula samples with `node Scripts/verify-calculator-parity.mjs`.
 
+## Biometric unlock
+
+Face ID / Touch ID is **opt-in only**. The preference defaults to off (`UserDefaults` key `tsp.biometricUnlockEnabled`, same idea as Android `TSPPrefs.biometricEnabled`). A cold launch never shows a biometric prompt unless the user turned the toggle on in native Settings, the HTML Settings page, or the login checkbox.
+
+When the toggle is on and a Keychain session exists:
+
+1. Launch or return from the background covers the signed-in tabs with an opaque lock screen.
+2. LocalAuthentication uses `.deviceOwnerAuthentication` so Face ID / Touch ID can fall back to the device passcode.
+3. **Cancel or failure does not clear Keychain and does not sign out** (Android cancel could full sign-out — iOS does not).
+4. **Use password** re-authenticates against Supabase and leaves the saved session in place until the user taps Sign Out.
+
+`NSFaceIDUsageDescription` is set in `Info.plist`. HTML `Android.setBiometricEnabled` / `isBiometricEnabled` / `canUseBiometric` read and write the same native flag so Settings.html cannot disagree with the Settings tab.
+
 ## P0 parity (this slice)
 
 1. WKWebView shell: JS bridge, Keychain session, `restoreSession` / `?_s=` equivalent.
@@ -145,8 +158,9 @@ Check table + formula samples with `node Scripts/verify-calculator-parity.mjs`.
 4. Settings About version/build + sign out.
 5. ATS / HTTPS to Supabase (plus the CDN hosts the HTML already uses).
 6. Native photometry calculators (Fluence, Density, Wavelength, Duty Cycle, Average Power).
+7. Opt-in LocalAuthentication unlock (Face ID / Touch ID) of the Keychain session.
 
-Still later: schedule/report CRUD polish, onboarding gate, StoreKit, full LocalAuthentication prompt.
+Still later: schedule/report CRUD polish, onboarding gate, StoreKit.
 
 ## Out of scope
 
@@ -165,12 +179,12 @@ PhotometryTools/
   ContentView.swift            Home / Calculators / Settings tabs
   Views/                       Login, root gate, Home WKWebView, native calculators, Settings
   Calculators/                 Photometry math + VBeam wavelength table (HTML parity)
-  Auth/                        Keychain session, supabase-swift sign-in/out
+  Auth/                        Keychain session, supabase-swift sign-in/out, LocalAuthentication gate
   Config/AppConfig.swift       Reads example-backed plist / xcconfig keys
   Supabase/                    SupabaseClient factory (KeychainLocalStorage)
   PDF/                         get-manual-url client, PDFKit viewer, report HTML→PDF
   Resources/assets/            Synced TSP HTML/CSS/JS + placeholder fallback
-  Info.plist                   Merged keys (SUPABASE_* from xcconfig)
+  Info.plist                   Merged keys (SUPABASE_* from xcconfig, NSFaceIDUsageDescription)
 Scripts/sync-web-assets.sh     Refresh assets from totalservicepro-web
 Scripts/verify-calculator-parity.mjs   HTML vs native table/formula check
 Scripts/secret-scan.sh         Fail if secrets landed in git

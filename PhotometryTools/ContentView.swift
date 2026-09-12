@@ -24,4 +24,6 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environmentObject(AuthService.shared)
+        .environmentObject(BiometricSettings.shared)
+        .environmentObject(BiometricUnlockController.shared)
 }

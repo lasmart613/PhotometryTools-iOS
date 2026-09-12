@@ -2,10 +2,12 @@ import SwiftUI
 
 struct LoginView: View {
     @EnvironmentObject private var auth: AuthService
+    @EnvironmentObject private var biometric: BiometricSettings
 
     @State private var email = ""
     @State private var password = ""
     @State private var isWorking = false
+    @State private var enableBiometricUnlock = false
 
     var body: some View {
         NavigationStack {
@@ -33,11 +35,26 @@ struct LoginView: View {
                         .textContentType(.password)
                 }
 
+                if biometric.canEvaluate {
+                    Section {
+                        Toggle("Enable \(biometric.biometryName) unlock", isOn: $enableBiometricUnlock)
+                        Text("Off by default. Turn this on only if you want \(biometric.biometryName) before the signed-in app on the next launch.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 Section {
                     Button {
                         Task {
                             isWorking = true
                             await auth.signIn(email: email.trimmed, password: password)
+                            if auth.isSignedIn && enableBiometricUnlock {
+                                let result = await biometric.confirmEnrollment()
+                                if result == .success {
+                                    biometric.setEnabled(true)
+                                }
+                            }
                             isWorking = false
                         }
                     } label: {
@@ -90,4 +107,5 @@ private extension String {
 #Preview {
     LoginView()
         .environmentObject(AuthService.shared)
+        .environmentObject(BiometricSettings.shared)
 }
