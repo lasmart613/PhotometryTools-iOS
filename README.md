@@ -82,6 +82,41 @@ Confirmed against Photometry_Tools `MainActivity` (main + inventory):
 
 `WKWebView` injects `TSP_CONFIG` + the `Android` shim at document start, then calls `restoreSession` on `didFinish`.
 
+## Manuals and report PDFs
+
+Cloud manuals stay in Supabase Storage (`manuals` bucket). This repo does **not** ship `pdfjs/` or large bundled PDFs.
+
+### Open manual (role-gated)
+
+`manual_library.html` and `service_manuals.html` still run `service-company-gate.js` (service company only; owners/suppliers stay blocked). After the HTML allows an open, they navigate to `pdf_viewer.html?storage_path=&title=&manual_id=`.
+
+iOS intercepts that navigation (the Android PDF.js page is not bundled) and:
+
+1. Uses the Keychain / supabase-swift session JWT (refreshed when possible).
+2. POSTs `{ "storage_path" }` to `https://yljztfajyvjzqikxdddf.supabase.co/functions/v1/get-manual-url` with `Authorization: Bearer <access_token>` and the local anon key as `apikey`.
+3. Downloads the signed URL to a temp file (`tmp/tsp-pdfs/`).
+4. Opens it in **PDFKit** (`PDFViewerController`) with a share-sheet button (`UIActivityViewController`).
+
+Folder manuals (`manual_id` + `chapter_metadata` / `entry_file_path`) use the same PostgREST read as Android `pdf_viewer.html`, then a native chapter list. The Edge Function still enforces `user_manuals` ownership — native code does not bypass that.
+
+### Service report PDFs
+
+`reports_list.html` opens `service_report.html` (existing synced flow). Export calls `Android.printReport(html, jobName)` — the same hook Android `MainActivity` implements. iOS renders that HTML with a hidden `WKWebView.createPDF`, writes a temp PDF, and presents PDFKit + share.
+
+### JS bridge additions
+
+The injected `window.Android` shim keeps session methods and adds:
+
+| Method | Behavior |
+|---|---|
+| `getManualUrl(storagePath)` | Promise → signed URL from `get-manual-url` |
+| `openManual({ storage_path, title, manual_id })` | Resolve + open in PDFKit |
+| `openPdf(url \| path \| { url, base64, title })` | Download/open in PDFKit. `blob:` is read in JS and sent as base64 |
+| `sharePdf(...)` | Same sources, then the iOS share sheet |
+| `printReport(html, jobName)` | HTML → PDF → PDFKit (report export) |
+
+Session injection (`tsp-auth-token` / `restoreSession` / `?_s=`) is unchanged.
+
 ## P0 parity (this slice)
 
 1. WKWebView shell: JS bridge, Keychain session, `restoreSession` / `?_s=` equivalent.
@@ -90,7 +125,7 @@ Confirmed against Photometry_Tools `MainActivity` (main + inventory):
 4. Settings About version/build + sign out.
 5. ATS / HTTPS to Supabase (plus the CDN hosts the HTML already uses).
 
-Still later: schedule/report CRUD polish, PDF viewer, native calculators, onboarding gate, StoreKit, full LocalAuthentication prompt.
+Still later: schedule/report CRUD polish, native calculators, onboarding gate, StoreKit, full LocalAuthentication prompt.
 
 ## Out of scope
 
@@ -111,6 +146,7 @@ PhotometryTools/
   Auth/                        Keychain session, supabase-swift sign-in/out
   Config/AppConfig.swift       Reads example-backed plist / xcconfig keys
   Supabase/                    SupabaseClient factory (KeychainLocalStorage)
+  PDF/                         get-manual-url client, PDFKit viewer, report HTML→PDF
   Resources/assets/            Synced TSP HTML/CSS/JS + placeholder fallback
   Info.plist                   Merged keys (SUPABASE_* from xcconfig)
 Scripts/sync-web-assets.sh     Refresh assets from totalservicepro-web

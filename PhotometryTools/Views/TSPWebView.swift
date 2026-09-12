@@ -112,7 +112,29 @@ struct TSPWebView: UIViewRepresentable {
                 return
             }
 
+            if isPDFViewerNavigation(url) {
+                decisionHandler(.cancel)
+                TSPPDFBridge.shared.handlePDFViewerNavigation(url)
+                return
+            }
+
             if let scheme = url.scheme, scheme == "http" || scheme == "https" {
+                let isMainFrame = navigationAction.targetFrame?.isMainFrame != false
+                if isMainFrame && (url.pathExtension.lowercased() == "pdf"
+                    || url.path.lowercased().contains(".pdf")) {
+                    decisionHandler(.cancel)
+                    Task { @MainActor in
+                        do {
+                            _ = try await TSPPDFBridge.shared.openOrShare(
+                                spec: ["url": url.absoluteString, "title": url.lastPathComponent],
+                                share: false
+                            )
+                        } catch {
+                            PDFHost.presentAlert(title: "Could not open PDF", message: error.localizedDescription)
+                        }
+                    }
+                    return
+                }
                 if url.host?.contains("supabase.co") == true
                     || url.host?.contains("jsdelivr.net") == true
                     || url.host?.contains("googleapis.com") == true
@@ -127,6 +149,12 @@ struct TSPWebView: UIViewRepresentable {
             }
 
             decisionHandler(.allow)
+        }
+
+        private func isPDFViewerNavigation(_ url: URL) -> Bool {
+            let name = url.lastPathComponent.lowercased()
+            if name.hasPrefix("pdf_viewer.html") { return true }
+            return url.path.lowercased().contains("/pdf_viewer.html")
         }
 
         func webView(
@@ -150,44 +178,123 @@ struct TSPWebView: UIViewRepresentable {
             guard message.name == "tsp" else { return }
 
             let type: String
-            let payload: String
+            let requestId: String
+            let payload: Any
             if let body = message.body as? [String: Any] {
                 type = body["type"] as? String ?? ""
-                if let value = body["payload"] as? String {
-                    payload = value
-                } else if let value = body["payload"] {
-                    payload = String(describing: value)
-                } else {
-                    payload = ""
-                }
+                requestId = body["requestId"] as? String ?? ""
+                payload = body["payload"] ?? ""
             } else {
                 type = ""
+                requestId = ""
                 payload = ""
             }
 
             Task { @MainActor in
-                switch type {
-                case "saveSession":
-                    auth.applyWebSessionJSON(payload)
-                case "clearSession":
-                    auth.applyWebClearSession()
-                case "showToast":
-                    auth.lastMessage = payload
-                case "setBiometricEnabled":
-                    BiometricSettings.isEnabled = payload == "true" || payload == "1"
-                case "openUrl":
-                    if let url = URL(string: payload) {
-                        UIApplication.shared.open(url)
-                    }
-                case "goBack":
-                    if webView?.canGoBack == true {
-                        webView?.goBack()
-                    }
-                case "showLoginPopup":
-                    await auth.signOut()
-                default:
-                    break
+                await handleBridgeMessage(type: type, payload: payload, requestId: requestId)
+            }
+        }
+
+        private func handleBridgeMessage(type: String, payload: Any, requestId: String) async {
+            let text = stringPayload(payload)
+            let spec = dictionaryPayload(payload)
+
+            switch type {
+            case "saveSession":
+                auth.applyWebSessionJSON(text)
+            case "clearSession":
+                auth.applyWebClearSession()
+            case "showToast":
+                auth.lastMessage = text
+            case "setBiometricEnabled":
+                BiometricSettings.isEnabled = text == "true" || text == "1"
+            case "openUrl":
+                if let url = URL(string: text) {
+                    UIApplication.shared.open(url)
                 }
+            case "goBack":
+                if webView?.canGoBack == true {
+                    webView?.goBack()
+                }
+            case "showLoginPopup":
+                await auth.signOut()
+            case "getManualUrl":
+                let path = spec["storage_path"] as? String ?? spec["storagePath"] as? String ?? text
+                do {
+                    let url = try await TSPPDFBridge.shared.signedManualURL(storagePath: path)
+                    reply(requestId: requestId, value: url.absoluteString)
+                } catch {
+                    reply(requestId: requestId, error: error.localizedDescription)
+                }
+            case "openManual":
+                let path = spec["storage_path"] as? String ?? spec["storagePath"] as? String ?? ""
+                let title = spec["title"] as? String ?? "Service Manual"
+                let manualID = intValue(spec["manual_id"]) ?? intValue(spec["manualId"])
+                await TSPPDFBridge.shared.openManual(storagePath: path, title: title, manualID: manualID)
+                reply(requestId: requestId, value: true)
+            case "openPdf":
+                do {
+                    let path = try await TSPPDFBridge.shared.openOrShare(spec: spec.isEmpty ? ["url": text] : spec, share: false)
+                    reply(requestId: requestId, value: path)
+                } catch {
+                    reply(requestId: requestId, error: error.localizedDescription)
+                    PDFHost.presentAlert(title: "Could not open PDF", message: error.localizedDescription)
+                }
+            case "sharePdf":
+                do {
+                    let path = try await TSPPDFBridge.shared.openOrShare(spec: spec.isEmpty ? ["url": text] : spec, share: true)
+                    reply(requestId: requestId, value: path)
+                } catch {
+                    reply(requestId: requestId, error: error.localizedDescription)
+                    PDFHost.presentAlert(title: "Could not share PDF", message: error.localizedDescription)
+                }
+            case "printReport":
+                let html = spec["html"] as? String ?? text
+                let jobName = spec["jobName"] as? String ?? spec["title"] as? String ?? "Service Report"
+                await TSPPDFBridge.shared.printReport(html: html, jobName: jobName)
+                reply(requestId: requestId, value: true)
+            default:
+                break
+            }
+        }
+
+        private func reply(requestId: String, value: Any? = nil, error: String? = nil) {
+            guard !requestId.isEmpty, let webView else { return }
+            var body: [String: Any] = ["id": requestId, "ok": error == nil]
+            if let error, !error.isEmpty {
+                body["error"] = error
+            } else if let value {
+                body["value"] = value
+            }
+            guard let data = try? JSONSerialization.data(withJSONObject: body),
+                  let json = String(data: data, encoding: .utf8) else { return }
+            webView.evaluateJavaScript("window.__tspComplete && window.__tspComplete(\(json));", completionHandler: nil)
+        }
+
+        private func stringPayload(_ payload: Any) -> String {
+            if let value = payload as? String { return value }
+            if let value = payload as? [String: Any],
+               let nested = value["value"] as? String {
+                return nested
+            }
+            return ""
+        }
+
+        private func dictionaryPayload(_ payload: Any) -> [String: Any] {
+            if let dict = payload as? [String: Any] { return dict }
+            if let text = payload as? String, let data = text.data(using: .utf8),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return dict
+            }
+            return [:]
+        }
+
+        private func intValue(_ value: Any?) -> Int? {
+            switch value {
+            case let n as Int: return n
+            case let n as NSNumber: return n.intValue
+            case let s as String: return Int(s)
+            default: return nil
             }
         }
 
@@ -214,15 +321,53 @@ struct TSPWebView: UIViewRepresentable {
                 var stored = \(Self.jsonStringLiteral(localStorageValue));
                 if (stored) { localStorage.setItem('tsp-auth-token', stored); }
               } catch (e) {}
-              function post(type, payload) {
+              window.__tspPending = window.__tspPending || {};
+              window.__tspComplete = function(msg) {
+                if (!msg || !msg.id) return;
+                var pending = window.__tspPending[msg.id];
+                if (!pending) return;
+                delete window.__tspPending[msg.id];
+                if (msg.ok) pending.resolve(msg.value);
+                else pending.reject(new Error(msg.error || 'Native request failed'));
+              };
+              function post(type, payload, requestId) {
                 try {
                   if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tsp) {
                     window.webkit.messageHandlers.tsp.postMessage({
                       type: type,
-                      payload: payload == null ? '' : String(payload)
+                      payload: payload == null ? '' : payload,
+                      requestId: requestId || ''
                     });
                   }
                 } catch (e) {}
+              }
+              function invoke(type, payload) {
+                return new Promise(function(resolve, reject) {
+                  var id = String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+                  window.__tspPending[id] = { resolve: resolve, reject: reject };
+                  post(type, payload, id);
+                });
+              }
+              function pdfSpec(urlOrPath, title) {
+                if (urlOrPath && typeof urlOrPath === 'object' && !Array.isArray(urlOrPath)) {
+                  return urlOrPath;
+                }
+                return { url: String(urlOrPath || ''), title: title || 'Document' };
+              }
+              function sendPdf(type, urlOrPath, title) {
+                var spec = Object.assign({}, pdfSpec(urlOrPath, title));
+                var raw = spec.url || spec.path || spec.file || '';
+                if (typeof raw === 'string' && raw.indexOf('blob:') === 0) {
+                  return fetch(raw).then(function(r) { return r.arrayBuffer(); }).then(function(buf) {
+                    var bytes = new Uint8Array(buf);
+                    var binary = '';
+                    for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+                    spec.base64 = btoa(binary);
+                    delete spec.url;
+                    return invoke(type, spec);
+                  });
+                }
+                return invoke(type, spec);
               }
               window.Android = {
                 saveSession: function(json) {
@@ -252,7 +397,29 @@ struct TSPWebView: UIViewRepresentable {
                 stopVoiceRecognition: function() {},
                 launchBillingFlow: function() {},
                 checkSubscription: function() {},
-                printReport: function() {},
+                getManualUrl: function(storagePath) {
+                  var path = storagePath;
+                  if (storagePath && typeof storagePath === 'object') {
+                    path = storagePath.storage_path || storagePath.storagePath || '';
+                  }
+                  return invoke('getManualUrl', { storage_path: String(path || '') });
+                },
+                openManual: function(payload) {
+                  var spec = payload;
+                  if (typeof payload === 'string') {
+                    try { spec = JSON.parse(payload); } catch (e) { spec = { storage_path: payload }; }
+                  }
+                  spec = spec || {};
+                  return invoke('openManual', spec);
+                },
+                openPdf: function(urlOrPath, title) { return sendPdf('openPdf', urlOrPath, title); },
+                sharePdf: function(urlOrPath, title) { return sendPdf('sharePdf', urlOrPath, title); },
+                printReport: function(html, jobName) {
+                  return invoke('printReport', {
+                    html: String(html || ''),
+                    jobName: String(jobName || 'Service Report')
+                  });
+                },
                 getPremiumStatus: function() { return false; },
                 setPremiumStatus: function() {}
               };

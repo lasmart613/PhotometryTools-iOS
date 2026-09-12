@@ -26,6 +26,13 @@
 		A00000000000000000000064 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000054 /* RootView.swift */; };
 		A00000000000000000000065 /* BiometricSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000055 /* BiometricSettings.swift */; };
 		A00000000000000000000072 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000071 /* Supabase */; };
+		A00000000000000000000090 /* ManualURLClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000080 /* ManualURLClient.swift */; };
+		A00000000000000000000091 /* PDFFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000081 /* PDFFileStore.swift */; };
+		A00000000000000000000092 /* PDFViewerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000082 /* PDFViewerController.swift */; };
+		A00000000000000000000093 /* ManualChapterPickerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000083 /* ManualChapterPickerController.swift */; };
+		A00000000000000000000094 /* ReportPDFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000084 /* ReportPDFRenderer.swift */; };
+		A00000000000000000000095 /* TSPPDFBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000085 /* TSPPDFBridge.swift */; };
+		A00000000000000000000096 /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000086 /* PDFKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +60,13 @@
 		A0000000000000000000001E /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		A0000000000000000000001F /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		A00000000000000000000020 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		A00000000000000000000080 /* ManualURLClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualURLClient.swift; sourceTree = "<group>"; };
+		A00000000000000000000081 /* PDFFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFFileStore.swift; sourceTree = "<group>"; };
+		A00000000000000000000082 /* PDFViewerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFViewerController.swift; sourceTree = "<group>"; };
+		A00000000000000000000083 /* ManualChapterPickerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualChapterPickerController.swift; sourceTree = "<group>"; };
+		A00000000000000000000084 /* ReportPDFRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPDFRenderer.swift; sourceTree = "<group>"; };
+		A00000000000000000000085 /* TSPPDFBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TSPPDFBridge.swift; sourceTree = "<group>"; };
+		A00000000000000000000086 /* PDFKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PDFKit.framework; path = System/Library/Frameworks/PDFKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,6 +75,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A0000000000000000000003B /* WebKit.framework in Frameworks */,
+				A00000000000000000000096 /* PDFKit.framework in Frameworks */,
 				A00000000000000000000072 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -95,6 +110,7 @@
 				A00000000000000000000021 /* Auth */,
 				A0000000000000000000000B /* Config */,
 				A0000000000000000000000C /* Supabase */,
+				A00000000000000000000022 /* PDF */,
 				A0000000000000000000000D /* Resources */,
 				A00000000000000000000019 /* Assets.xcassets */,
 				A0000000000000000000001B /* Info.plist */,
@@ -143,6 +159,19 @@
 			path = Auth;
 			sourceTree = "<group>";
 		};
+		A00000000000000000000022 /* PDF */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000080 /* ManualURLClient.swift */,
+				A00000000000000000000081 /* PDFFileStore.swift */,
+				A00000000000000000000082 /* PDFViewerController.swift */,
+				A00000000000000000000083 /* ManualChapterPickerController.swift */,
+				A00000000000000000000084 /* ReportPDFRenderer.swift */,
+				A00000000000000000000085 /* TSPPDFBridge.swift */,
+			);
+			path = PDF;
+			sourceTree = "<group>";
+		};
 		A0000000000000000000000D /* Resources */ = {
 			isa = PBXGroup;
 			children = (
@@ -166,6 +195,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000000000000000000020 /* WebKit.framework */,
+				A00000000000000000000086 /* PDFKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -262,6 +292,12 @@
 				A00000000000000000000063 /* LoginView.swift in Sources */,
 				A00000000000000000000064 /* RootView.swift in Sources */,
 				A00000000000000000000065 /* BiometricSettings.swift in Sources */,
+				A00000000000000000000090 /* ManualURLClient.swift in Sources */,
+				A00000000000000000000091 /* PDFFileStore.swift in Sources */,
+				A00000000000000000000092 /* PDFViewerController.swift in Sources */,
+				A00000000000000000000093 /* ManualChapterPickerController.swift in Sources */,
+				A00000000000000000000094 /* ReportPDFRenderer.swift in Sources */,
+				A00000000000000000000095 /* TSPPDFBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

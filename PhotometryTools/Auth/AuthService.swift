@@ -19,6 +19,20 @@ final class AuthService: ObservableObject {
 
     var anonKey: String? { AppConfig.supabaseAnonKey }
 
+    /// Access token from the live supabase-swift session, falling back to Keychain JSON.
+    var accessToken: String? {
+        TSPSessionJSON.tokens(from: sessionJSON ?? "")?.accessToken
+    }
+
+    /// Refreshes via supabase-swift when possible so `get-manual-url` gets a live JWT.
+    func validAccessToken() async -> String? {
+        if let client, let session = try? await client.auth.session {
+            persist(session: session)
+            return session.accessToken
+        }
+        return accessToken
+    }
+
     init() {
         isConfigured = AppConfig.isAnonKeyConfigured
         sessionJSON = SessionKeychain.load()

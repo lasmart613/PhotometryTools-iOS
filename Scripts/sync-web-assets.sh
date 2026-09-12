@@ -24,6 +24,8 @@ FALLBACK_PLACEHOLDER="$DEST/placeholder.html"
 # P0 shell + shared CSS/JS auth helpers. Do not invent pages.
 # Skip pdfjs/, manuals PDFs, paywall, marketplace, AI, estimates/invoices,
 # old.service_schedule.html — those are P1 or oversized viewer chrome.
+# pdf_viewer.html is also skipped: iOS intercepts that URL and opens PDFKit
+# after calling the get-manual-url Edge Function (see README).
 P0_FILES=(
   index.html
   service_hub.html
