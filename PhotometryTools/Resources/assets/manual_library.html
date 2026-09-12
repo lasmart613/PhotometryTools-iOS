@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Manuals · TSP</title>
+    <script src="theme.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="tsp.css">
+    <style>
+        .shelf-section { margin-bottom: 28px; }
+        .brand-header {
+            font-size: 14px;
+            font-weight: 700;
+            color: #d4af37;
+            margin-bottom: 10px;
+            padding-left: 8px;
+            letter-spacing: 0.5px;
+        }
+        .shelf {
+            background: linear-gradient(180deg, #5c4633 0%, #3f2f22 100%);
+            border: 5px solid #2a2118;
+            border-radius: 14px;
+            padding: 16px 12px 10px;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.5), 0 6px 16px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+        }
+        .shelf::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background:
+                linear-gradient(90deg, rgba(0,0,0,0.15) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.15) 100%),
+                repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.03) 4px, rgba(255,255,255,0.03) 8px);
+            pointer-events: none;
+        }
+        .books-row {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px 0 8px;
+        }
+        .book {
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+        }
+        .book:hover { transform: translateY(-8px) rotate(1deg); }
+        .book-spine {
+            width: 54px;
+            height: 105px;
+            border-radius: 4px 3px 3px 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 6px 8px;
+            box-shadow: 4px 4px 10px rgba(0,0,0,0.7), inset -3px 0 6px rgba(0,0,0,0.5), inset 1px 0 3px rgba(255,255,255,0.15);
+            position: relative;
+            overflow: hidden;
+        }
+        .book-spine::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; right: 0; bottom: 0;
+            background: linear-gradient(145deg, rgba(255,215,0,0.08) 0%, transparent 40%);
+            pointer-events: none;
+        }
+        .book-title {
+            font-size: 8.5px;
+            font-weight: 700;
+            color: #f0e6d2;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            text-align: center;
+            line-height: 1.15;
+            max-height: 68px;
+            overflow: hidden;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+        }
+        .book-spine::after {
+            content: '';
+            position: absolute;
+            left: 7px;
+            top: 10px;
+            bottom: 10px;
+            width: 1.5px;
+            background: linear-gradient(to bottom, rgba(255,215,0,0.3), transparent, rgba(255,215,0,0.2));
+        }
+        .owned-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: #22c55e;
+            color: white;
+            font-size: 9px;
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-weight: 700;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .op-badge {
+            position: absolute;
+            top: -4px;
+            left: -4px;
+            background: #b45309;
+            color: white;
+            font-size: 8px;
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .inc-badge {
+            position: absolute;
+            bottom: -4px;
+            left: -4px;
+            background: #44403c;
+            color: white;
+            font-size: 7px;
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+        .tab {
+            flex: 1;
+            padding: 11px;
+            background: none;
+            border: none;
+            color: var(--text3);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.15s;
+        }
+        .tab.active {
+            color: var(--gold);
+            border-bottom-color: var(--gold);
+        }
+        .modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: var(--surface2);
+            border-radius: 16px;
+            padding: 24px;
+            width: 90%;
+            max-width: 340px;
+            text-align: center;
+        }
+        .warning-text {
+            font-size: 12px;
+            color: #f59e0b;
+            margin-top: 8px;
+        }
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #d4af37;
+            color: #1a140f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            border: 2px solid #d4af37;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER WITH AVATAR ON RIGHT -->
+<div class="lib-header" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px;">
+    <div class="lib-brand">
+        <div class="lib-brand-name">Service Manuals</div>
+        <div class="lib-brand-sub">Total Service Pro</div>
+    </div>
+
+    <div id="authSection" style="display: flex; align-items: center; gap: 8px;">
+        <button id="loginBtn" class="btn btn-gold btn-sm" onclick="showLoginPopup()">Login</button>
+        <div id="avatar" class="user-avatar" onclick="showUserMenu()" style="display: none;"></div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+    <button class="tab active" id="tabBrowse" onclick="switchTab('browse')"> Browse All</button>
+    <button class="tab" id="tabLibrary" onclick="switchTab('library')"> My Library</button>
+</div>
+
+<div class="main-content" id="mainContent">
+    <div class="empty-state"><div class="spinner"></div></div>
+</div>
+
+<!-- Add to Library Modal -->
+<div class="modal" id="addModal">
+    <div class="modal-content">
+        <h3 style="margin-bottom:8px;">Add to Library?</h3>
+        <p id="modalManualTitle" style="font-weight:700; color:#fff; margin-bottom:12px;"></p>
+
+        <div class="warning-text">⚠️ This action cannot be undone.</div>
+
+        <div style="margin:16px 0; padding:12px; background:var(--surface3); border-radius:12px;">
+            <div id="slotText" style="font-size:13px; color:var(--text3);">0 of 5 slots used</div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="btn" onclick="closeModal()" style="flex:1; background:#444;">Cancel</button>
+            <button class="btn btn-gold" id="addBtn" onclick="addToLibrary()" style="flex:1;">Add to Library</button>
+        </div>
+
+        <div id="upgradePrompt" style="display:none; margin-top:16px; font-size:13px; color:#f59e0b;">
+            Library is full.<br>
+            <button onclick="upgradeAccount()" class="btn btn-gold" style="margin-top:8px; padding:6px 16px; font-size:12px;">Upgrade Account</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="service-company-gate.js"></script>
+<script>
+    const supabaseClient = supabase.createClient(
+        'https://yljztfajyvjzqikxdddf.supabase.co',
+        ((window.TSP_CONFIG && window.TSP_CONFIG.supabaseAnonKey) || '')
+    );
+
+    let allManuals = [];
+    let userManualIds = new Set();
+    let currentTab = 'browse';
+    let currentRoom = 'laser';
+    let currentManual = null;
+    let FREE_LIMIT = 5;
+    let currentUser = null;
+
+    function isDornierHolmium(hay) {
+        return /\bmedilas\b/.test(hay) || /\bh[- ]?20\b/.test(hay) || /\bh[- ]?30\b/.test(hay);
+    }
+    function isManualIncomplete(m) {
+        const v = m && (m.is_incomplete != null ? m.is_incomplete : m.isIncomplete);
+        return v === true || v === 1 || v === '1' || v === 'true' || v === 't';
+    }
+    function manualRoom(m) {
+        const hay = [m && m.title, m && m.brand, m && m.model, m && m.storage_path].join(' ').toLowerCase();
+        if (isDornierHolmium(hay)) return 'laser';
+        const shock = /shock\s*wave|shockwave|\beswl\b|\bswl\b|ultrasonic\s+litho|electrohydraulic|extracorporeal|\blithotrip(tor|ter|sy|sie)\b/.test(hay)
+            || (/\bdornier\b/.test(hay) && /\b(compact|delta|sigma|doli|gemini|hm3|mpl)\b/.test(hay));
+        if (shock) return 'lithotriptor';
+        const holmiumLitho = /\bcyber\s*ho\b/.test(hay)
+            || /\blitho\s*(evo|60|100)\b/.test(hay)
+            || (/\bquanta\b/.test(hay) && /\blitho\b/.test(hay))
+            || (/\blitho\b/.test(hay) && !/\blithotrip/.test(hay));
+        if (holmiumLitho) return 'laser';
+        const explicit = String(m && m.equipment_type || '').toLowerCase().replace(/[\s-]+/g, '_');
+        if (explicit === 'lithotriptor' || explicit === 'c_arm' || explicit === 'other' || explicit === 'laser') {
+            return explicit;
+        }
+        if (/\bc[-\s_]?arm\b|\boec\b|fluoroscop/.test(hay)) return 'c_arm';
+        return 'laser';
+    }
+
+    async function init() {
+        try {
+            const raw = localStorage.getItem('tsp-auth-token');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                const session = parsed?.currentSession || parsed;
+                if (session?.access_token && session?.refresh_token) {
+                    await supabaseClient.auth.setSession({
+                        access_token: session.access_token,
+                        refresh_token: session.refresh_token
+                    });
+                }
+            }
+        } catch(e) {}
+
+        updateAuthUI();
+
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) {
+            document.getElementById('mainContent').innerHTML =
+                `<div class="empty-state"><h3>Please log in</h3><p>Service manuals are for service companies.</p></div>`;
+            return;
+        }
+        const access = await tspLoadServiceAccess(supabaseClient, user);
+        if (!access.allowed) {
+            document.getElementById('mainContent').innerHTML =
+                `<div class="empty-state"><h3>Service Company only</h3><p>Service manuals are for service companies.</p></div>`;
+            return;
+        }
+
+        try {
+            await loadManuals();
+            await loadUserManuals();
+            renderContent();
+        } catch(err) {
+            console.error(err);
+            document.getElementById('mainContent').innerHTML =
+                `<div class="empty-state"><h3>Failed to load manuals</h3><p>${err.message}</p></div>`;
+        }
+    }
+
+    /** Bare "VBeam" is the operator PDF; "VBeam Perfecta" stays a service title. */
+    function isBareVbeamOperatorTitle(title) {
+        const stripped = String(title || '').replace(/^\s*(syneron(?:\s*candela)?|candela)\b[\s\-:\/]*/i, '').trim();
+        return /^v[\s_-]*beam$/i.test(stripped) && !/\b(perfecta|platinum|aesthetica|classic|pro|[0-9]+)\b/i.test(stripped);
+    }
+    function isOperatorManual(manual) {
+        const raw = String(manual && manual.title || '').trim();
+        if (/\b(service|technical|repair)\s+manuals?\b/i.test(raw)) return false;
+        if (/operator'?s?\s+manual|\buser\s+manual\b/i.test(raw)) return true;
+        return isBareVbeamOperatorTitle(raw);
+    }
+    function catalogTitle(manual) {
+        const raw = String(manual && manual.title || '').trim();
+        if (!raw) return 'Manual';
+        if (/\b(service|technical|repair)\s+manuals?\b/i.test(raw)) return raw;
+        if (/operator'?s?\s+manual|\buser\s+manual\b/i.test(raw)) return raw;
+        if (isBareVbeamOperatorTitle(raw)) return raw + " Operator's Manual";
+        return raw;
+    }
+
+    async function loadManuals() {
+        const { data, error } = await supabaseClient.from('manuals').select('*').order('brand').order('title');
+        if (error) throw error;
+        allManuals = data || [];
+    }
+
+    async function loadUserManuals() {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) return;
+        currentUser = user;
+
+        const [manualsRes, profileRes] = await Promise.all([
+            supabaseClient.from('user_manuals').select('manual_id').eq('user_id', user.id),
+            supabaseClient.from('user_profiles').select('manual_slots').eq('id', user.id).single()
+        ]);
+
+        userManualIds = new Set((manualsRes.data || []).map(r => r.manual_id));
+        if (profileRes.data?.manual_slots) FREE_LIMIT = profileRes.data.manual_slots;
+    }
+
+    function updateAuthUI() {
+        const loginBtn = document.getElementById('loginBtn');
+        const avatar = document.getElementById('avatar');
+
+        supabaseClient.auth.getUser().then(({ data: { user } }) => {
+            if (user) {
+                loginBtn.style.display = 'none';
+                avatar.style.display = 'flex';
+
+                const name = user.user_metadata?.full_name || user.email || 'U';
+                const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                avatar.textContent = initials;
+            } else {
+                loginBtn.style.display = 'block';
+                avatar.style.display = 'none';
+            }
+        });
+    }
+
+    function showUserMenu() {
+        const menu = confirm('Logged in as ' + (currentUser?.email || 'User') + '\n\nLogout?');
+        if (menu) {
+            supabaseClient.auth.signOut().then(() => {
+                localStorage.removeItem('tsp-auth-token');
+                window.location.reload();
+            });
+        }
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.getElementById('tabBrowse').className = 'tab' + (tab === 'browse' ? ' active' : '');
+        document.getElementById('tabLibrary').className = 'tab' + (tab === 'library' ? ' active' : '');
+        renderContent();
+    }
+
+    function renderContent() {
+        const container = document.getElementById('mainContent');
+
+        let filtered = allManuals;
+        if (currentTab === 'library') {
+            filtered = filtered.filter(m => userManualIds.has(m.id));
+        }
+        const roomCounts = { laser: 0, lithotriptor: 0, c_arm: 0, other: 0 };
+        filtered.forEach((m) => { roomCounts[manualRoom(m)] = (roomCounts[manualRoom(m)] || 0) + 1; });
+        filtered = filtered.filter((m) => manualRoom(m) === currentRoom);
+
+        const rooms = [
+            { value: 'laser', label: 'Laser' },
+            { value: 'lithotriptor', label: 'Lithotriptor' },
+            { value: 'c_arm', label: 'C-arm' },
+            { value: 'other', label: 'Other' },
+        ];
+        const roomBar = `<div style="display:flex;gap:8px;overflow-x:auto;padding:12px 16px 0;">` +
+            rooms.map((r) => {
+                const on = currentRoom === r.value;
+                return `<button onclick="selectRoom('${r.value}')" style="flex:1;min-width:88px;padding:8px 6px;border-radius:10px;border:1px solid ${on ? '#d4af37' : 'var(--border)'};background:${on ? 'var(--surface3)' : 'var(--surface)'};color:${on ? '#d4af37' : 'var(--text)'};font-weight:700;font-size:12px;">${r.label}<div style="font-size:10px;font-weight:600;color:var(--text3)">${roomCounts[r.value] || 0}</div></button>`;
+            }).join('') + `</div>`;
+
+        if (filtered.length === 0) {
+            container.innerHTML = roomBar + `<div class="empty-state"><h3>This room's bookshelf is empty</h3><p>Manuals will appear here after they are added to the catalog.</p></div>`;
+            return;
+        }
+
+        const grouped = {};
+        filtered.forEach(m => {
+            if (!grouped[m.brand]) grouped[m.brand] = [];
+            grouped[m.brand].push(m);
+        });
+
+        let html = '';
+        Object.keys(grouped).forEach(brand => {
+            const books = grouped[brand];
+            html += `
+                <div class="shelf-section">
+                    <div class="brand-header">${brand}</div>
+                    <div class="shelf">
+                        <div class="books-row">
+                            ${books.map((m, i) => {
+                                const isOwned = userManualIds.has(m.id);
+                                const isOp = isOperatorManual(m);
+                                const isInc = isManualIncomplete(m);
+                                return `
+                                    <div class="book" onclick="handleBookClick('${m.id}')">
+                                        <div class="book-spine book-color-${i % 8}">
+                                            <div class="book-title">${catalogTitle(m)}</div>
+                                        </div>
+                                        ${isOp ? '<div class="op-badge" title="Operators Manual">OP</div>' : ''}
+                                        ${isInc ? '<div class="inc-badge" title="This document is incomplete">Incomplete</div>' : ''}
+                                        ${isOwned ? '<div class="owned-badge">✓</div>' : ''}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = roomBar + html;
+    }
+
+    function selectRoom(room) {
+        currentRoom = room || 'laser';
+        renderContent();
+    }
+
+    async function handleBookClick(manualId) {
+        const manual = allManuals.find(m => String(m.id) === String(manualId));
+        if (!manual) {
+            alert('Manual not found');
+            return;
+        }
+
+        const alreadyOwns = userManualIds.has(manual.id);
+
+        if (alreadyOwns) {
+            await openManual(manual);
+        } else {
+            if (currentTab === 'browse') {
+                currentManual = manual;
+                showAddModal(manual);
+            } else {
+                await openManual(manual);
+            }
+        }
+    }
+
+    function showAddModal(manual) {
+        const modal = document.getElementById('addModal');
+        const titleEl = document.getElementById('modalManualTitle');
+        const slotText = document.getElementById('slotText');
+        const addBtn = document.getElementById('addBtn');
+        const upgradePrompt = document.getElementById('upgradePrompt');
+
+        titleEl.textContent = catalogTitle(manual);
+        const used = userManualIds.size;
+
+        slotText.textContent = `${used} of ${FREE_LIMIT} slots used`;
+
+        upgradePrompt.style.display = 'none';
+        addBtn.style.display = 'block';
+
+        if (used >= FREE_LIMIT) {
+            addBtn.style.display = 'none';
+            upgradePrompt.style.display = 'block';
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('addModal').style.display = 'none';
+    }
+
+    async function addToLibrary() {
+        if (!currentManual) return;
+
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) {
+            alert('Please log in first');
+            closeModal();
+            return;
+        }
+
+        try {
+            await supabaseClient.from('user_manuals').insert({
+                user_id: user.id,
+                manual_id: currentManual.id
+            });
+
+            userManualIds.add(currentManual.id);
+            closeModal();
+            renderContent();
+
+            setTimeout(() => {
+                openManual(currentManual);
+            }, 300);
+
+        } catch (err) {
+            alert('Failed to add: ' + err.message);
+            closeModal();
+        }
+    }
+
+    function upgradeAccount() {
+        closeModal();
+        window.location.href = 'paywall.html';
+    }
+
+    async function openManual(manual) {
+        // Use the dedicated PDF viewer for the best experience + internal link support.
+        // Pass manual_id so the viewer can fetch is_folder + chapter_metadata (Option 1 long-term model).
+        const params = new URLSearchParams({
+            storage_path: manual.storage_path || '',
+            title: catalogTitle(manual),
+            manual_id: manual.id,
+            incomplete: isManualIncomplete(manual) ? '1' : '0'
+        });
+
+        window.location.href = `pdf_viewer.html?${params.toString()}`;
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>

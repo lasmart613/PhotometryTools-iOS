@@ -1,0 +1,2806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Schedule</title>
+    <link rel="stylesheet" href="tsp.css">
+    <style>
+        /* Page-specific reset and layout only.
+           Theme variables, .back-btn, .nav-btn, .today-btn, .bottom-nav-item,
+           .btn-primary etc. now come from tsp.css for consistent Fluke yellow styling. */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: var(--surface);
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--gold);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        /* Button styles (back-btn, nav-btn, today-btn, btn-primary, bottom-nav-item) now come from tsp.css */
+        .header-title { font-size: 18px; font-weight: 700; }
+        .header-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+/* .add-btn standardized to .btn-primary */
+
+        .view-tabs {
+            display: flex; background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+        .view-tab {
+            flex: 1; padding: 11px 4px; background: none; border: none;
+            color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .view-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+        .cal-nav {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .cal-body { flex: 1; overflow-y: auto; padding-bottom: 70px; }
+
+        /* Calendar nav layout only (button visuals from tsp.css) */
+        .cal-nav .period-label {
+            font-size: 12px; font-weight: 600; color: var(--gold);
+            min-height: 16px; text-align: center;
+        }
+
+        /* Month grid - strict columns so content never resizes days */
+        .month-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            width: 100%;
+            overflow: hidden;
+        }
+        .month-dow {
+            padding: 8px 4px; text-align: center; font-size: 11px;
+            font-weight: 700; color: var(--text-muted);
+            background: var(--surface2); border-bottom: 1px solid var(--border);
+            min-width: 0; overflow: hidden;
+        }
+        .month-cell {
+            min-height: 80px; border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border); padding: 4px;
+            background: var(--surface); cursor: pointer;
+            min-width: 0;           /* critical for grid 1fr shrinking */
+            overflow: hidden;       /* prevent content from expanding tracks */
+            box-sizing: border-box;
+        }
+        .month-cell.other-month { opacity: 0.45; }
+        .month-cell.today { background: #fef3c7; color: #111; }
+        .month-cell .day-num { font-weight: 600; margin-bottom: 3px; }
+        .month-event {
+            font-size: 10px; padding: 1px 3px; border-radius: 3px;
+            margin-bottom: 2px; white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; background: #FBBF24; color: #111;
+            min-width: 0;
+        }
+        .month-event.my-task {
+            border: 2px solid var(--gold);
+            padding: 0 2px;
+        }
+        .month-more { font-size: 10px; color: var(--text-muted); }
+
+        /* ═══════════════════════════════════════
+           WEEK / DAY TIME GRID (full)
+           ═══════════════════════════════════════ */
+        .time-grid-wrap {
+            display: flex; flex-direction: column; height: 100%;
+            width: 100%; overflow-x: hidden;
+        }
+        .tg-header {
+            display: grid;
+            /* grid-template-columns is set dynamically in JS to exact px values after measurement */
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0; position: sticky; top: 0; z-index: 10;
+            width: 100%; overflow: hidden;
+        }
+        .tg-gutter {
+            width: 52px; /* first grid column */
+            border-right: 1px solid var(--border);
+            box-sizing: border-box;
+        }
+        .tg-day-head {
+            min-width: 0 !important;
+            overflow: hidden;
+            padding: 8px 4px; text-align: center; font-size: 12px;
+            border-right: 1px solid var(--border);
+            box-sizing: border-box;
+            white-space: nowrap;
+        }
+        .tg-day-head:last-child { border-right: none; }
+        .tg-day-name { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .tg-day-num { font-size: 18px; font-weight: 700; margin-top: 2px; }
+        .tg-day-num.today-num {
+            background: var(--gold); color: #111; width: 32px; height: 32px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            margin: 2px auto 0;
+        }
+        .tg-body {
+            flex: 1; overflow-y: auto; position: relative;
+            width: 100%; overflow-x: hidden;
+        }
+        .tg-row {
+            display: grid;
+            grid-template-columns: 52px 1fr; /* time label + the day cells area */
+            position: relative; width: 100%; overflow: hidden;
+        }
+        .tg-time {
+            width: 52px;
+            text-align: right; padding: 0 8px 0 0;
+            font-size: 10px; color: var(--text-muted); line-height: 1;
+            position: relative; top: -6px; border-right: 1px solid var(--border);
+            user-select: none;
+            box-sizing: border-box;
+        }
+        .tg-cells {
+            display: grid;
+            /* grid-template-columns set dynamically in JS to N exact px values (no gutter here) */
+            width: 100%; overflow: hidden;
+            box-sizing: border-box;
+        }
+        .tg-cell {
+            min-width: 0 !important;
+            height: 60px; 
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border); 
+            position: relative; 
+            cursor: pointer;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        .tg-cell:last-child { border-right: none; }
+        .tg-cell:hover { background: #ffffff06; }
+
+        .tg-event {
+            position: absolute; 
+            left: 2px; 
+            right: 2px; 
+            border-radius: 6px;
+            padding: 4px 6px; 
+            font-size: 11px; 
+            font-weight: 600; 
+            overflow: hidden;
+            cursor: pointer; 
+            z-index: 2; 
+            border-left: 3px solid rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            min-height: 26px;
+            max-width: calc(100% - 4px);   /* hard cap to prevent column expansion */
+            box-sizing: border-box;
+        }
+        .tg-event.priority-high      { background: #ef444488; border-left-color: #ef4444; color: #fff; }
+        .tg-event.priority-medium    { background: #f59e0b88; border-left-color: #f59e0b; color: #111; }
+        .tg-event.priority-low       { background: #22c55e88; border-left-color: #22c55e; color: #111; }
+        .tg-event.priority-emergency { background: #7c3aed88; border-left-color: #7c3aed; color: #fff; }
+        .tg-event-default            { background: #FBBF2488; border-left-color: #FBBF24; color: #111; }
+
+        /* Highlight for tasks assigned to the current engineer */
+        .tg-event.my-task {
+            border: 2px solid var(--gold);
+            box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.3);
+            z-index: 11;
+        }
+
+        .tg-event-title {
+            flex: 1 1 auto;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            line-height: 1.22;
+            margin-bottom: 1px;
+            /* Extra protection against long unbreakable strings */
+            word-break: break-all;
+            min-width: 0;
+        }
+        .tg-event-time {
+            font-size: 9.5px;
+            opacity: 0.85;
+            flex-shrink: 0;
+            line-height: 1.1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Taller events (sufficient duration) are allowed to wrap text.
+           Short events stay single-line truncated to prevent column widening. */
+        .tg-event:not(.tg-event--short) .tg-event-title {
+            white-space: normal;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+        }
+
+        .tg-event--short .tg-event-time {
+            display: none;
+        }
+
+        .now-line {
+            position: absolute; left: 52px; right: 0; height: 2px;
+            background: var(--now-line); z-index: 5; pointer-events: none;
+        }
+        .now-dot {
+            position: absolute; left: -5px; top: -4px; width: 10px; height: 10px;
+            border-radius: 50%; background: var(--now-line);
+        }
+
+        /* ═══════════════════════════════════════
+           AGENDA VIEW (full)
+           ═══════════════════════════════════════ */
+        .agenda-list { padding: 8px 0; }
+        .agenda-day-header {
+            padding: 12px 16px 6px; font-size: 12px; font-weight: 700;
+            color: var(--gold); text-transform: uppercase; letter-spacing: 0.8px;
+            position: sticky; top: 0; background: var(--bg); z-index: 2;
+        }
+        .agenda-day-header.today-header { color: var(--gold); }
+        .agenda-item {
+            display: flex; align-items: stretch; margin: 4px 16px;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 10px; overflow: hidden; cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        .agenda-item:hover { border-color: var(--gold); }
+        .agenda-item.my-task {
+            border-color: var(--gold);
+            border-width: 2px;
+        }
+        .agenda-priority-bar { width: 5px; flex-shrink: 0; }
+        .agenda-priority-bar.high      { background: var(--red); }
+        .agenda-priority-bar.medium    { background: #f59e0b; }
+        .agenda-priority-bar.low       { background: var(--green); }
+        .agenda-priority-bar.emergency { background: #7c3aed; }
+        .agenda-content { flex: 1; padding: 10px 12px; }
+        .agenda-time     { font-size: 12px; color: var(--text-muted); margin-bottom: 2px; }
+        .agenda-customer { font-size: 14px; font-weight: 700; }
+        .agenda-equipment{ font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .agenda-ticket   { font-size: 11px; color: var(--gold); margin-top: 4px; font-weight: 600; }
+        .agenda-meta { display: flex; align-items: center; justify-content: flex-end; padding: 10px 12px; gap: 8px; flex-direction: column; }
+        .priority-badge {
+            font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .priority-badge.high      { background: #ef444422; color: #ef4444; border: 1px solid #ef444444; }
+        .priority-badge.medium    { background: #f59e0b22; color: #f59e0b; border: 1px solid #f59e0b44; }
+        .priority-badge.low       { background: #22c55e22; color: #22c55e; border: 1px solid #22c55e44; }
+        .priority-badge.emergency { background: #7c3aed22; color: #7c3aed; border: 1px solid #7c3aed44; }
+        .agenda-empty {
+            text-align: center; padding: 48px 24px; color: var(--text-muted); font-size: 14px;
+        }
+
+        /* Full ticket page (dedicated page feel, not popup) */
+        .ticket-section {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .ticket-section-hdr {
+            padding: 8px 12px;
+            background: var(--surface);
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gold);
+            border-bottom: 1px solid var(--border);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .ticket-section-body {
+            padding: 10px 12px;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .ticket-field {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .ticket-field:last-child { margin-bottom: 0; }
+        .ticket-label {
+            width: 92px;
+            flex-shrink: 0;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .ticket-value {
+            flex: 1;
+            word-break: break-word;
+        }
+        .ticket-value strong {
+            color: var(--gold);
+        }
+        .ticket-serial {
+            font-family: ui-monospace, monospace;
+            background: var(--surface);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        /* Customer autocomplete styles (shared) */
+        .cust-dropdown {
+            display: none; background: var(--surface2); border: 1px solid var(--gold); border-radius: 8px;
+            max-height: 220px; overflow-y: auto; z-index: 300;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+        .cust-option {
+            padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--border);
+        }
+        .cust-option:last-child { border-bottom: none; }
+        .cust-option:hover { background: var(--surface3); }
+        .cust-option-name { font-weight: 600; }
+        .cust-option-sub { font-size: 11px; color: var(--text3); }
+
+        /* Equipment / general search autocomplete styles (for new ticket) */
+        .search-wrap { position: relative; }
+        .search-results {
+            display: none; position: absolute; top: 100%; left: 0; right: 0;
+            background: var(--surface2); border: 1px solid var(--gold); border-radius: 8px;
+            max-height: 220px; overflow-y: auto; z-index: 300; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+        .search-results.open { display: block; }
+        .search-result-item { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:hover { background: var(--surface3); }
+        .search-result-name { font-weight: 600; font-size: 13px; }
+        .search-result-sub { font-size: 11px; color: var(--text3); }
+        .search-create-btn {
+            padding: 10px 12px; cursor: pointer; background: var(--surface3); color: var(--gold);
+            font-size: 13px; border-top: 1px solid var(--border);
+        }
+        .search-create-btn:hover { background: #1a1a1a; }
+        .equip-chip {
+            display: none; margin-top: 6px; padding: 8px 10px; background: var(--surface2);
+            border: 1px solid var(--gold); border-radius: 8px; font-size: 12px;
+        }
+        .equip-chip.show { display: block; }
+        .equip-chip-name { font-weight: 600; }
+        .equip-chip-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+        .equip-chip-clear { float: right; background: none; border: none; color: var(--text-muted); font-size: 16px; line-height: 1; cursor: pointer; }
+        .inline-create { display: none; margin-top: 8px; padding: 10px; background: var(--surface3); border: 1px dashed var(--border); border-radius: 8px; }
+        .inline-create.open { display: block; }
+        .inline-create-title { font-size: 12px; font-weight: 700; color: var(--gold); margin-bottom: 8px; }
+        .form-row { display: flex; gap: 8px; margin-bottom: 6px; }
+        .form-group { flex: 1; }
+        .form-group label { display: block; font-size: 10px; color: var(--text3); margin-bottom: 3px; }
+        .form-group input, .form-group select {
+            width: 100%; padding: 6px 8px; background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 6px; color: var(--text); font-size: 13px;
+        }
+
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: var(--surface); border-top: 1px solid var(--gold);
+            display: flex; justify-content: space-around; height: 60px;
+            padding: 6px 8px;
+        }
+
+        /* Make bottom nav items yellow rounded rectangles (Fluke style) for this page */
+        .bottom-nav .bottom-nav-item {
+            background: var(--gold);
+            color: #111827;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+        }
+        .bottom-nav .bottom-nav-item:hover {
+            background: #EAB308;
+        }
+        .bottom-nav .bottom-nav-item:active {
+            transform: scale(0.96);
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-left">
+        <button class="back-btn" onclick="navigateTo('index.html')">←</button>
+        <div>
+            <div class="header-title">Service Schedule</div>
+            <div class="header-subtitle" id="headerSub">Connecting to schedule...</div>
+            <div id="orgSwitcherMount"></div>
+        </div>
+    </div>
+    <button class="btn btn-primary btn-sm" id="newTicketBtn" onclick="openNewTicket()">+ New</button>
+</div>
+
+<div class="view-tabs" id="scheduleViewTabs">
+    <button class="view-tab active" data-view="month"  onclick="switchView('month')">Month</button>
+    <button class="view-tab"        data-view="week"   onclick="switchView('week')">Week</button>
+    <button class="view-tab"        data-view="day"    onclick="switchView('day')">Day</button>
+    <button class="view-tab"        data-view="agenda" onclick="switchView('agenda')">Agenda</button>
+</div>
+
+<div class="cal-nav">
+    <button class="nav-btn" onclick="navPrev()">‹</button>
+    <div class="nav-center">
+        <button class="today-btn" onclick="goToday()">Today</button>
+        <button id="myTasksToggle" class="today-btn" onclick="toggleMyTasksFilter()" style="margin-left:8px; font-size:11px; padding:4px 10px;">
+            My Tasks
+        </button>
+        <div class="period-label" id="periodLabel">—</div>
+        <div id="agendaSortWrap" style="display:none; margin-left:6px;">
+            <button id="agendaSortBtn" class="today-btn" style="padding:2px 6px; font-size:10px; min-width:auto;" onclick="toggleAgendaSort()">Newest ▲</button>
+        </div>
+    </div>
+    <button class="nav-btn" onclick="navNext()">›</button>
+</div>
+
+<div class="cal-body" id="calBody"></div>
+
+<!-- Full page ticket detail view (replaces popup; feels like a dedicated page within the schedule) -->
+<div id="ticketFullPage" style="display:none; flex:1; overflow-y:auto; padding-bottom:90px; background:var(--bg);">
+  <div style="position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--gold); padding:10px 12px; display:flex; align-items:center; justify-content:space-between;">
+    <button onclick="closeFullTicketPage()" style="background:none; border:1px solid var(--border); color:var(--gold); padding:6px 10px; border-radius:6px; font-size:13px;">← Back to Schedule</button>
+    <div id="ticketFullHeader" style="font-weight:700; color:var(--gold); font-size:14px; text-align:center; flex:1;"></div>
+    <div style="width:80px;"></div> <!-- spacer -->
+  </div>
+
+  <div id="ticketFullContent" style="padding:12px 14px; max-width:720px; margin:0 auto;"></div>
+
+  <div style="position:sticky; bottom:60px; background:var(--surface2); border-top:1px solid var(--gold); padding:8px 10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+    <button onclick="navigateToTicket()" style="background:#111; color:var(--gold); border:1px solid var(--gold); padding:8px 14px; border-radius:8px; font-weight:600; font-size:13px;">🗺 Start Navigation</button>
+    <button onclick="createServiceReportFromTicket(); closeFullTicketPage();" style="background:var(--gold); color:#111; border:none; padding:8px 14px; border-radius:8px; font-weight:700; font-size:13px;">📋 Create Service Report</button>
+    <button onclick="editCurrentTicket()" style="background:var(--surface); color:var(--text); border:1px solid var(--border); padding:8px 12px; border-radius:8px; font-size:13px;">✏️ Edit Ticket</button>
+    <button onclick="deleteCurrentTicket()" style="background:var(--surface); color:#f87171; border:1px solid var(--border); padding:8px 12px; border-radius:8px; font-size:13px;">🗑 Delete</button>
+  </div>
+</div>
+
+<div class="bottom-nav">
+    <button class="bottom-nav-item" onclick="navigateTo('index.html')">Home</button>
+    <button class="bottom-nav-item" onclick="history.back()">Back</button>
+    <button class="bottom-nav-item" onclick="navigateTo('service_hub.html')">Tech Hub</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+    // ==================== FULL WORKING JAVASCRIPT ====================
+
+    // Session restoration bootstrap (matches other pages)
+    var _pendingSession = null;
+    (function() {
+        try {
+            const enc = new URLSearchParams(window.location.search).get('_s');
+            if (enc) {
+                const s = JSON.parse(atob(enc));
+                if (s?.access_token) {
+                    _pendingSession = s;
+                    localStorage.setItem('tsp-auth-token', JSON.stringify({currentSession:s,expiresAt:s.expires_at}));
+                    const u = new URL(window.location.href);
+                    u.searchParams.delete('_s');
+                    window.history.replaceState({},'',u.toString());
+                    return;
+                }
+            }
+            const raw = localStorage.getItem('tsp-auth-token');
+            if (raw) {
+                const p = JSON.parse(raw);
+                const sess = p?.currentSession || (p?.access_token ? p : null);
+                if (sess?.access_token) _pendingSession = sess;
+            }
+        } catch(e) {}
+    })();
+
+    const supabaseClient = supabase.createClient(
+        'https://yljztfajyvjzqikxdddf.supabase.co',
+        ((window.TSP_CONFIG && window.TSP_CONFIG.supabaseAnonKey) || ''),
+        {
+            auth: {
+                persistSession: true,
+                storageKey: 'tsp-auth-token',
+                storage: window.localStorage,
+                autoRefreshToken: true,
+                detectSessionInUrl: false
+            }
+        }
+    );
+
+    // Apply pending session from Android or deep link (if present)
+    if (_pendingSession) {
+        const ps = _pendingSession;
+        _pendingSession = null;
+        supabaseClient.auth.setSession({
+            access_token: ps.access_token,
+            refresh_token: ps.refresh_token || ''
+        }).catch(() => {});
+    }
+
+    let currentView = 'month';
+    let cursor = new Date();
+    let tickets = [];
+    let currentUser = null;
+    let currentUserOrgId = null;
+    let currentUserRole = 'engineer';
+    let selectedTicket = null;  // for detail actions (Navigate, Create SR)
+    let engineers = [];  // for resolving assigned_to IDs to human-readable FSE names
+    let agendaSortDesc = true;  // true = Newest on top in Agenda view
+
+    function isValidOrgId(val) {
+        if (val == null) return false;
+        if (typeof val === 'number' && Number.isFinite(val) && val > 0) return true;
+        if (typeof val === 'string') {
+            const s = val.trim();
+            if (s.includes('-') && s.length > 10) return true; // UUID style
+            if (/^\d+$/.test(s)) return true; // legacy integer id (e.g. 4 for Luxor Photonix)
+        }
+        return false;
+    }
+    let showMyTasksOnly = false;
+
+    // Equipment selection state for new ticket (from reference)
+    let selectedEquipmentId = null;
+    let equipSearchTimer = null;
+    let selectedNewTicketCustomerOrgId = null;  // for filtering equipment to the selected customer's org
+    let selectedNewTicketCustomerNameForFilter = null;
+
+    // Edit ticket equipment state (separate from new ticket to avoid conflicts)
+    let editSelectedEquipmentId = null;
+    let editEquipmentData = null;
+
+    let showCompleted = false;
+    let showCancelled = false;
+
+    async function init() {
+        // Wait a moment for possible session restoration from Android or URL
+        await new Promise(r => setTimeout(r, 150));
+
+        try {
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            currentUser = user;
+
+            if (user) {
+                // Load user's organization for proper data scoping
+                const { data: profile } = await supabaseClient
+                    .from('user_profiles')
+                    .select('organization_id, role')
+                    .eq('id', user.id)
+                    .maybeSingle();
+
+                const cand = profile?.organization_id;
+                if (isValidOrgId(cand)) {
+                    currentUserOrgId = cand;
+                }
+                currentUserRole = profile?.role || 'engineer';
+            }
+        } catch (e) {
+            console.warn('getUser / org load failed', e);
+        }
+
+        loadVisibilitySettings();
+
+        // Load customer orgs early (for address enrichment on tickets and new ticket form)
+        await loadTicketCustomers();
+
+        // Load engineers for resolving assigned_to to human-readable names in ticket details
+        await loadEngineers();
+
+        // Always attempt to load tickets (auth state may settle via listener below)
+        await loadTickets();
+
+        // Enrich loaded tickets with customer address/contact from organizations (by name match)
+        // This makes address visible even on tickets that only store customer_name (no denormalized address yet)
+        // (loadTickets already ensures ticketCustomers is loaded)
+        enrichTicketsWithCustomerData();
+
+        // Respect user's preferred default calendar view from Settings
+        try {
+            const saved = localStorage.getItem('tsp_settings');
+            if (saved) {
+                const s = JSON.parse(saved);
+                if (s.calView && ['month','week','day','agenda'].includes(s.calView)) {
+                    currentView = s.calView;
+                    document.querySelectorAll('.view-tab').forEach(el =>
+                        el.classList.toggle('active', el.dataset.view === currentView));
+                }
+                if (typeof s.agendaSortDesc === 'boolean') {
+                    agendaSortDesc = s.agendaSortDesc;
+                }
+            }
+        } catch(e) {}
+
+        renderView();
+        startNowLine();
+
+        applyRoleBasedVisibility();
+
+        // For engineers, default to showing only their tasks
+        if (currentUserRole === 'engineer') {
+            showMyTasksOnly = true;
+            updateMyTasksToggle();
+            // Re-render after setting filter
+            setTimeout(() => renderView(), 50);
+        }
+    }
+
+    function loadVisibilitySettings() {
+        try {
+            const saved = localStorage.getItem('tsp_settings');
+            if (saved) {
+                const s = JSON.parse(saved);
+                showCompleted = !!s.showCompleted;
+                showCancelled = !!s.showCancelled;
+            }
+        } catch(e) {}
+    }
+
+    function getVisibleTickets() {
+        return tickets.filter(t => {
+            const status = (t.status || '').toLowerCase().trim();
+            if (status === 'completed' && !showCompleted) return false;
+            if (status === 'cancelled' && !showCancelled) return false;
+
+            // My Tasks filter: for engineers, this is very useful
+            if (showMyTasksOnly && currentUser?.id) {
+                if (t.assigned_to !== currentUser.id) return false;
+            }
+
+            return true;
+        });
+    }
+
+    async function loadTickets() {
+        const header = document.getElementById('headerSub');
+        if (!header) return;
+
+        // Ensure customer orgs are loaded so enrichment can copy address/contact data
+        if (!Array.isArray(ticketCustomers) || ticketCustomers.length === 0) {
+            await loadTicketCustomers();
+        }
+
+        try {
+            let query = supabaseClient
+                .from('service_tickets')
+                .select('*')
+                .order('service_date', { ascending: true });
+
+            // Enforce organization scoping (tickets should only be visible within the same org)
+            if (isValidOrgId(currentUserOrgId)) {
+                query = query.eq('organization_id', currentUserOrgId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                console.error('loadTickets Supabase error:', error);
+                header.textContent = 'Error loading tickets';
+                header.style.color = 'var(--red, #ef4444)';
+                tickets = [];
+                return;
+            }
+
+            tickets = data || [];
+            const visible = getVisibleTickets();
+
+            if (!currentUser) {
+                header.textContent = `${tickets.length} tickets (no user)`;
+            } else {
+                header.textContent =
+                    `${tickets.length} total${visible.length !== tickets.length ? ` · ${visible.length} visible` : ''}`;
+            }
+            header.style.color = ''; // reset any error color
+
+            // Always re-enrich with customer address data after any load (ensures address shows in full page and list after refreshes)
+            if (typeof enrichTicketsWithCustomerData === 'function') {
+                enrichTicketsWithCustomerData();
+            }
+        } catch (e) {
+            console.error('loadTickets exception:', e);
+            header.textContent = 'Failed to load schedule';
+            header.style.color = 'var(--red, #ef4444)';
+            tickets = [];
+        }
+    }
+
+    // Enrich tickets with customer address/contact info from the loaded organizations (type=customer).
+    // Matches on customer_name (case-insensitive). Copies address fields so the full ticket page
+    // (and nav / create SR) can display them even if they were not denormalized at ticket creation time.
+    function enrichTicketsWithCustomerData() {
+        if (!Array.isArray(ticketCustomers) || ticketCustomers.length === 0 || !Array.isArray(tickets)) return;
+
+        const byName = {};
+        ticketCustomers.forEach(org => {
+            if (org && org.name) {
+                byName[org.name.toLowerCase().trim()] = org;
+            }
+        });
+
+        tickets.forEach(t => {
+            if (!t || !t.customer_name) return;
+
+            const key = t.customer_name.toLowerCase().trim();
+            const org = byName[key];
+            if (!org) return;
+
+            // Only fill if the ticket doesn't already have a value (prefer any denormalized data on the ticket)
+            if (!t.address && org.address) t.address = org.address;
+            if (!t.city && org.city) t.city = org.city;
+            if (!t.state && org.state) t.state = org.state;
+            if (!t.customer_address && org.address) t.customer_address = org.address;
+            if (!t.customer_city && org.city) t.customer_city = org.city;
+            if (!t.customer_state && org.state) t.customer_state = org.state;
+            if (!t.customer_phone && org.phone) t.customer_phone = org.phone;
+            if (!t.customer_email && org.email) t.customer_email = org.email;
+
+            // Also attach the org for any future use
+            if (!t._customerOrg) t._customerOrg = org;
+        });
+    }
+
+    // ==================== CONSTANTS & HELPERS ====================
+    const MONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    // These must exactly match the CHECK constraint on service_tickets.status in the database
+    const STATUSES = ['Awaiting Scheduling', 'Scheduled', 'En Route', 'On Site', 'Parts Ordered', 'Completed', 'Cancelled'];
+    let nowLineTimer = null;
+
+    function applyRoleBasedVisibility() {
+        // Hide + New button for field engineers and CRM roles (creation is management only)
+        const managementRoles = ['admin', 'dispatcher', 'service_manager'];
+        const canManageSchedule = managementRoles.includes(currentUserRole || 'engineer');
+        const newBtn = document.getElementById('newTicketBtn');
+        if (newBtn) {
+            newBtn.style.display = canManageSchedule ? '' : 'none';
+        }
+    }
+
+    function toDateStr(d) {
+        return d.getFullYear() + '-' +
+            String(d.getMonth()+1).padStart(2,'0') + '-' +
+            String(d.getDate()).padStart(2,'0');
+    }
+
+    function isSameDay(a, b) {
+        return a.getFullYear() === b.getFullYear() &&
+               a.getMonth()    === b.getMonth()    &&
+               a.getDate()     === b.getDate();
+    }
+
+    function getWeekStart(d) {
+        // Respect settings weekStart if present (0=Sun, 1=Mon)
+        let start = 0;
+        try {
+            const saved = localStorage.getItem('tsp_settings');
+            if (saved) {
+                const s = JSON.parse(saved);
+                if (s.weekStart != null) start = parseInt(s.weekStart, 10) || 0;
+            }
+        } catch(e) {}
+        const s = new Date(d);
+        s.setHours(0,0,0,0);
+        const day = s.getDay();
+        const diff = (day - start + 7) % 7;
+        s.setDate(s.getDate() - diff);
+        return s;
+    }
+
+    function formatShortDate(d) {
+        return MONTHS[d.getMonth()].slice(0,3) + ' ' + d.getDate();
+    }
+
+    function formatHour(h) {
+        if (h === 0)  return '12 AM';
+        if (h === 12) return '12 PM';
+        return h < 12 ? h + ' AM' : (h-12) + ' PM';
+    }
+
+    function positionNowLine(days, mode) {
+        const nowLine = document.getElementById('nowLine');
+        if (!nowLine) return;
+        const now = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        const topPx = (nowMin / 60) * 60;
+        nowLine.style.top = topPx + 'px';
+    }
+
+    function startNowLine() {
+        clearInterval(nowLineTimer);
+        nowLineTimer = setInterval(() => {
+            const nl = document.getElementById('nowLine');
+            if (nl) {
+                const now = new Date();
+                nl.style.top = ((now.getHours() * 60 + now.getMinutes()) / 60 * 60) + 'px';
+            }
+        }, 60000);
+    }
+
+    function switchView(view) {
+        currentView = view;
+        document.querySelectorAll('.view-tab').forEach(el =>
+            el.classList.toggle('active', el.dataset.view === view));
+        renderView();
+    }
+
+    function renderView() {
+        const container = document.getElementById('calBody');
+        container.innerHTML = '';
+
+        const sortWrap = document.getElementById('agendaSortWrap');
+        if (sortWrap) sortWrap.style.display = 'none';
+
+        if (currentView === 'month') {
+            renderMonth(container);
+        } else if (currentView === 'week') {
+            renderWeek(container);
+        } else if (currentView === 'day') {
+            renderDay(container);
+        } else {
+            renderAgenda(container);
+        }
+    }
+
+    function renderMonth(container) {
+        const year = cursor.getFullYear();
+        const month = cursor.getMonth();
+
+        const label = document.getElementById('periodLabel');
+        if (label) label.textContent = MONTHS[month] + ' ' + year;
+
+        const grid = document.createElement('div');
+        grid.className = 'month-grid';
+
+        // Day headers
+        ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+            const h = document.createElement('div');
+            h.className = 'month-dow';
+            h.textContent = d;
+            grid.appendChild(h);
+        });
+
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        // Empty cells
+        for (let i = 0; i < firstDay; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'month-cell';
+            grid.appendChild(empty);
+        }
+
+        // Days
+        for (let day = 1; day <= daysInMonth; day++) {
+            const cell = document.createElement('div');
+            cell.className = 'month-cell';
+
+            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const dayTickets = getVisibleTickets().filter(t => t.service_date === dateStr);
+
+            const dayNum = document.createElement('div');
+            dayNum.className = 'day-num';
+            dayNum.textContent = day;
+            cell.appendChild(dayNum);
+
+            dayTickets.slice(0,2).forEach(t => {
+                const ev = document.createElement('div');
+                ev.className = 'month-event' + (currentUser?.id && t.assigned_to === currentUser.id ? ' my-task' : '');
+                ev.textContent = (t.scheduled_time ? t.scheduled_time.slice(0,5) + ' ' : '') + (t.customer_name || 'Ticket');
+                ev.onclick = (e) => { e.stopPropagation(); showTicketDetail(t); };
+                cell.appendChild(ev);
+            });
+
+            if (dayTickets.length > 2) {
+                const more = document.createElement('div');
+                more.className = 'month-more';
+                more.textContent = `+${dayTickets.length - 2} more`;
+                cell.appendChild(more);
+            }
+
+            cell.onclick = () => {
+                cursor = new Date(year, month, day);
+                switchView('day');
+            };
+
+            grid.appendChild(cell);
+        }
+
+        container.appendChild(grid);
+
+        // Strict px column lock for month view (prevents any content from widening the 7 day columns)
+        function lockMonthColumns() {
+            const avail = container.getBoundingClientRect().width || grid.getBoundingClientRect().width;
+            if (avail > 0) {
+                const px = Math.max(32, Math.floor(avail / 7));
+                const template = `repeat(7, ${px}px)`;
+                grid.style.gridTemplateColumns = template;
+                grid.style.width = (px * 7) + 'px';
+                grid.style.maxWidth = (px * 7) + 'px';
+            }
+        }
+        requestAnimationFrame(lockMonthColumns);
+        setTimeout(lockMonthColumns, 120);
+        setTimeout(lockMonthColumns, 280);
+    }
+
+    // ═══════════════════════════════════════
+    //  TIME GRID (shared by Week + Day)
+    // ═══════════════════════════════════════
+    function renderTimeGrid(container, days, mode) {
+        const today = new Date();
+        const wrap = document.createElement('div');
+        wrap.className = 'time-grid-wrap';
+
+        const numDays = days.length;
+
+        // Header row with day names/numbers (grid-based for strict columns)
+        const header = document.createElement('div');
+        header.className = 'tg-header';
+        const gutter = document.createElement('div');
+        gutter.className = 'tg-gutter';
+        header.appendChild(gutter);
+
+        days.forEach(d => {
+            const isToday = isSameDay(d, today);
+            const dh = document.createElement('div');
+            dh.className = 'tg-day-head';
+            const name = document.createElement('div');
+            name.className = 'tg-day-name';
+            name.textContent = DAYS_SHORT[d.getDay()];
+            const num = document.createElement('div');
+            num.className = 'tg-day-num' + (isToday ? ' today-num' : '');
+            num.textContent = d.getDate();
+            dh.appendChild(name);
+            dh.appendChild(num);
+            header.appendChild(dh);
+        });
+        wrap.appendChild(header);
+
+        // Scrollable body
+        const body = document.createElement('div');
+        body.className = 'tg-body';
+        body.id = 'tgBody';
+
+        // Precompute events per day column (respecting visibility settings)
+        const visibleTickets = getVisibleTickets();
+        const colEvents = days.map(d => {
+            const ds = toDateStr(d);
+            return visibleTickets.filter(t => t.service_date === ds);
+        });
+
+        // 24 hour rows — each row is a 2-column grid (time label + .tg-cells grid)
+        for (let h = 0; h < 24; h++) {
+            const row = document.createElement('div');
+            row.className = 'tg-row';
+
+            const timeEl = document.createElement('div');
+            timeEl.className = 'tg-time';
+            if (h > 0) timeEl.textContent = formatHour(h);
+            row.appendChild(timeEl);
+
+            const cells = document.createElement('div');
+            cells.className = 'tg-cells';
+
+            days.forEach((d, di) => {
+                const cell = document.createElement('div');
+                cell.className = 'tg-cell';
+                cell.onclick = () => {
+                    cursor = new Date(d);
+                    // switch to Day view for that date
+                    switchView('day');
+                };
+                cells.appendChild(cell);
+            });
+            row.appendChild(cells);
+            body.appendChild(row);
+        }
+
+        // Now line if today visible
+        const isVisible = days.some(d => isSameDay(d, today));
+        let nowLine = null;
+        if (isVisible) {
+            nowLine = document.createElement('div');
+            nowLine.className = 'now-line';
+            nowLine.id = 'nowLine';
+            const dot = document.createElement('div');
+            dot.className = 'now-dot';
+            nowLine.appendChild(dot);
+            body.appendChild(nowLine);
+        }
+
+        wrap.appendChild(body);
+        container.appendChild(wrap);
+
+        // === STRICT GRID COLUMN LOCKING (the nuclear option against resizing) ===
+        // Measure the real available width from the outer container (more reliable than the header itself on first paint).
+        // Then set explicit PIXEL grid-template-columns on the header and on every .tg-cells.
+        // Because the track sizes are hard px (not 1fr or auto), long text inside day heads or events literally cannot grow any column.
+        function lockColumnsAndPositionEvents() {
+            const totalWidth = container.getBoundingClientRect().width || wrap.getBoundingClientRect().width;
+            if (!totalWidth || numDays <= 0) return;
+
+            const availForDays = Math.max(60, totalWidth - 52); // gutter is always 52px
+            const pxPerDay = Math.max(48, Math.floor(availForDays / numDays));
+
+            // Build explicit pixel templates
+            const headerTemplate = '52px ' + Array(numDays).fill(pxPerDay + 'px').join(' ');
+            const cellsTemplate  = Array(numDays).fill(pxPerDay + 'px').join(' ');
+
+            // Apply to header (includes gutter column)
+            header.style.gridTemplateColumns = headerTemplate;
+
+            // Apply the day-only template to every hour's cells container + force exact width
+            wrap.querySelectorAll('.tg-cells').forEach(c => {
+                c.style.gridTemplateColumns = cellsTemplate;
+                c.style.width = (pxPerDay * numDays) + 'px';
+                c.style.maxWidth = (pxPerDay * numDays) + 'px';
+            });
+
+            // Also clamp the overall wrap/rows so nothing can push outward
+            const totalPx = 52 + (pxPerDay * numDays);
+            wrap.style.width = totalPx + 'px';
+            wrap.style.maxWidth = totalPx + 'px';
+            wrap.querySelectorAll('.tg-row').forEach(r => {
+                r.style.width = totalPx + 'px';
+                r.style.maxWidth = totalPx + 'px';
+            });
+
+            // Remove any stale absolutely-positioned events from previous renders
+            wrap.querySelectorAll('.tg-event').forEach(e => e.remove());
+
+            // Create fresh events using exact pixel coordinates (no % at all)
+            const gutter = 52;
+            days.forEach((d, di) => {
+                colEvents[di].forEach(t => {
+                    let topPx, heightPx, timeLabel;
+
+                    if (t.scheduled_time) {
+                        const [hh, mm] = String(t.scheduled_time).split(':').map(Number);
+                        const startMin = (hh || 0) * 60 + (mm || 0);
+
+                        let endMin = startMin + 60;
+                        if (t.end_time) {
+                            const [eh, em] = String(t.end_time).split(':').map(Number);
+                            endMin = (eh || 0) * 60 + (em || 0);
+                        }
+
+                        topPx = (startMin / 60) * 60;
+                        heightPx = Math.max(((endMin - startMin) / 60) * 60, 26);
+                        timeLabel = t.scheduled_time.slice(0,5) + (t.end_time ? ' – ' + t.end_time.slice(0,5) : '');
+                    } else {
+                        topPx = 0;
+                        heightPx = 26;
+                        timeLabel = 'Unscheduled';
+                    }
+
+                    const ev = document.createElement('div');
+                    const pri = (t.priority || 'medium').toLowerCase();
+                    ev.className = 'tg-event priority-' + pri;
+
+                    // Highlight tasks assigned to the current user
+                    if (currentUser?.id && t.assigned_to === currentUser.id) {
+                        ev.classList.add('my-task');
+                    }
+
+                    if (heightPx < 52) ev.classList.add('tg-event--short');
+
+                    const leftPx = gutter + (di * pxPerDay) + 2;
+                    const wPx = Math.max(48, pxPerDay - 6);
+                    ev.style.cssText = `top:${topPx}px;height:${heightPx}px;left:${leftPx}px;width:${wPx}px;position:absolute;pointer-events:auto;z-index:10;`;
+
+                    ev.innerHTML = `
+                        <div class="tg-event-title">${t.customer_name || 'Ticket'}</div>
+                        <div class="tg-event-time">${timeLabel}</div>
+                    `;
+                    ev.onclick = (e) => { e.stopPropagation(); e.preventDefault(); showTicketDetail(t); };
+                    ev.addEventListener('touchend', (e) => { e.stopPropagation(); showTicketDetail(t); }, {passive: true});
+
+                    body.appendChild(ev);
+                });
+            });
+
+            if (nowLine) positionNowLine(days, mode);
+
+            // Make sure we are scrolled to a useful time
+            body.scrollTop = 7 * 60;
+        }
+
+        // First lock pass (after paint)
+        requestAnimationFrame(() => {
+            lockColumnsAndPositionEvents();
+        });
+
+        // Second safety pass ~80ms later — catches any late layout shifts in WebView
+        setTimeout(() => {
+            lockColumnsAndPositionEvents();
+        }, 80);
+
+        // One more micro-pass for very slow renders
+        setTimeout(() => {
+            lockColumnsAndPositionEvents();
+        }, 220);
+    }
+
+    function renderWeek(container) {
+        const weekStart = getWeekStart(cursor);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+
+        const label = document.getElementById('periodLabel');
+        if (label) label.textContent = formatShortDate(weekStart) + ' – ' + formatShortDate(weekEnd);
+
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(weekStart);
+            d.setDate(d.getDate() + i);
+            days.push(d);
+        }
+        renderTimeGrid(container, days, 'week');
+    }
+
+    function renderDay(container) {
+        const d = new Date(cursor);
+        const label = document.getElementById('periodLabel');
+        if (label) label.textContent = DAYS_SHORT[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+
+        renderTimeGrid(container, [d], 'day');
+    }
+
+    // ═══════════════════════════════════════
+    //  AGENDA VIEW
+    // ═══════════════════════════════════════
+    function renderAgenda(container) {
+        const today = new Date();
+        const label = document.getElementById('periodLabel');
+        if (label) label.textContent = 'Agenda';
+
+        const list = document.createElement('div');
+        list.className = 'agenda-list';
+
+        // Show sort controls
+        const sortWrap = document.getElementById('agendaSortWrap');
+        const sortBtn = document.getElementById('agendaSortBtn');
+        if (sortWrap) sortWrap.style.display = 'inline-block';
+        if (sortBtn) sortBtn.textContent = agendaSortDesc ? 'Newest ▲' : 'Oldest ▼';
+
+        // Show ~30 days before cursor through ~60 days after for regular tickets.
+        // For completed/cancelled (when their visibility is toggled ON in Settings), include up to 1 year of past
+        // so that historical past/completed tickets are visible in Agenda by default without needing to scroll Prev.
+        const start = new Date(cursor); start.setHours(0,0,0,0);
+        start.setDate(start.getDate() - 90);  // include more past so old scheduled (non-completed) tickets are visible by default
+        const end = new Date(start); end.setDate(end.getDate() + 90);
+
+        const visibleInWindow = getVisibleTickets()
+            .filter(t => {
+                if (!t.service_date) return false;
+                const d = new Date(t.service_date + 'T00:00:00');
+                const status = (t.status || '').toLowerCase();
+                const isPastStatus = status === 'completed' || status === 'cancelled';
+                if (isPastStatus) {
+                    // show ALL historical completed/cancelled (when their visibility toggle is ON in Settings)
+                    // so past tickets are visible in Agenda without needing to navigate far back
+                    return d <= end;
+                }
+                return d >= start && d <= end;
+            })
+            .sort((a, b) => {
+                const dc = (a.service_date || '').localeCompare(b.service_date || '');
+                if (dc !== 0) return agendaSortDesc ? -dc : dc;
+                const tc = (a.scheduled_time || '').localeCompare(b.scheduled_time || '');
+                return agendaSortDesc ? -tc : tc;
+            });
+
+        if (visibleInWindow.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'agenda-empty';
+            const canCreate = ['admin', 'dispatcher', 'service_manager'].includes(currentUserRole);
+            empty.innerHTML = '📭<br><br>No service calls in the visible date window.<br>(Recent + upcoming; past/completed appear here when toggled ON in Settings. Use Prev/Month for older.)' +
+                (canCreate ? '<br><br><span style="color:var(--gold);cursor:pointer;" onclick="openNewTicket()">+ Schedule one now</span>' : '');
+            list.appendChild(empty);
+            container.appendChild(list);
+            return;
+        }
+
+        // Group by date
+        const byDate = {};
+        visibleInWindow.forEach(t => {
+            if (!byDate[t.service_date]) byDate[t.service_date] = [];
+            byDate[t.service_date].push(t);
+        });
+
+        let dateKeys = Object.keys(byDate).sort();
+        if (agendaSortDesc) dateKeys = dateKeys.reverse();
+        dateKeys.forEach(dateStr => {
+            const d = new Date(dateStr + 'T00:00:00');
+            const isToday = isSameDay(d, today);
+
+            const header = document.createElement('div');
+            header.className = 'agenda-day-header' + (isToday ? ' today-header' : '');
+            header.textContent = (isToday ? 'TODAY — ' : '') +
+                DAYS_SHORT[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+            list.appendChild(header);
+
+            byDate[dateStr].forEach(t => {
+                const item = document.createElement('div');
+                item.className = 'agenda-item' + (currentUser?.id && t.assigned_to === currentUser.id ? ' my-task' : '');
+
+                const bar = document.createElement('div');
+                bar.className = 'agenda-priority-bar ' + (t.priority || 'medium').toLowerCase();
+                item.appendChild(bar);
+
+                const content = document.createElement('div');
+                content.className = 'agenda-content';
+                const equip = [t.equipment_make, t.equipment_model].filter(Boolean).join(' ');
+                content.innerHTML = `
+                    <div class="agenda-time">${t.scheduled_time ? t.scheduled_time.slice(0,5) : 'Time TBD'}${t.end_time ? ' – ' + t.end_time.slice(0,5) : ''}</div>
+                    <div class="agenda-customer">${t.customer_name || 'No customer'}</div>
+                    <div class="agenda-equipment">${equip ? equip + ' · ' : ''}${t.service_type || ''}</div>
+                    <div class="agenda-ticket">${t.ticket_number || ''}</div>
+                `;
+                item.appendChild(content);
+
+                const meta = document.createElement('div');
+                meta.className = 'agenda-meta';
+                const badge = document.createElement('div');
+                const pri = (t.priority || 'medium').toLowerCase();
+                badge.className = 'priority-badge ' + pri;
+                badge.textContent = (t.priority || 'Medium');
+                meta.appendChild(badge);
+
+                // Quick actions (prevent card click from firing when tapping icons)
+                const qNav = document.createElement('span');
+                qNav.textContent = '🗺';
+                qNav.title = 'Navigate';
+                qNav.style.cssText = 'font-size:13px; margin-left:4px; cursor:pointer; opacity:0.85;';
+                qNav.onclick = (e) => { e.stopPropagation(); selectedTicket = t; navigateToTicket(); };
+                meta.appendChild(qNav);
+
+                const qSR = document.createElement('span');
+                qSR.textContent = '📋';
+                qSR.title = 'Create Service Report';
+                qSR.style.cssText = 'font-size:13px; margin-left:4px; cursor:pointer; opacity:0.85;';
+                qSR.onclick = (e) => { e.stopPropagation(); selectedTicket = t; createServiceReportFromTicket(); };
+                meta.appendChild(qSR);
+
+                item.appendChild(meta);
+
+                // Main tap opens the full dedicated ticket page (not a popup)
+                item.onclick = () => openFullTicketPage(t);
+                list.appendChild(item);
+            });
+        });
+
+        container.appendChild(list);
+    }
+
+    function showTicketDetail(t) {
+        // Redirect to the full dedicated ticket page (user requested no popups)
+        // The old bottom panel code is kept only as fallback for any other callers.
+        openFullTicketPage(t);
+    }
+
+    function closeFullTicketEditor() {
+        const m = document.getElementById('fullTicketEditor');
+        if (m) m.remove();
+        editSelectedEquipmentId = null;
+        editEquipmentData = null;
+    }
+
+    // Opens the full ticket in a rich editor modal so the user can view/edit every field in its entirety
+    function openFullTicketEditor(ticket) {
+        // Remove any previous editor
+        const old = document.getElementById('fullTicketEditor');
+        if (old) old.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'fullTicketEditor';
+        modal.style.cssText = `
+            position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10000;
+            display:flex; align-items:center; justify-content:center; padding:12px;
+        `;
+
+        const formHTML = `
+            <div style="background:var(--surface); width:100%; max-width:420px; border-radius:14px; border:2px solid var(--gold); overflow:hidden;">
+                <div style="padding:14px 16px; background:var(--surface2); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-weight:700; color:var(--gold);">Edit Ticket ${ticket.ticket_number || ''}</div>
+                    <button onclick="closeFullTicketEditor()" style="background:none; border:none; color:var(--text); font-size:22px; line-height:1;">×</button>
+                </div>
+
+                <div style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+                    <div>
+                        <label style="font-size:11px; color:var(--text3);">Customer</label>
+                        <div class="cust-search-wrap" style="position:relative;">
+                            <input id="edit_customer" value="${ticket.customer_name || ''}" placeholder="Search customer..." autocomplete="off"
+                                   oninput="onEditTicketCustSearch()" onfocus="onEditTicketCustSearch()"
+                                   style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                            <div class="cust-dropdown" id="editTicketCustDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:var(--surface2); border:1px solid var(--gold); border-radius:8px; max-height:200px; overflow-y:auto; z-index:100;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Equipment search (adapted for edit ticket) -->
+                    <div>
+                        <label style="font-size:11px; color:var(--text3);">Equipment (optional)</label>
+                        <div class="search-wrap">
+                            <input type="text" id="edit_equipSearch" placeholder="Search by SKU, serial, make or model..." autocomplete="off"
+                                   oninput="searchEditEquipment(this.value)"
+                                   style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                            <div class="search-results" id="edit_equipResults"></div>
+                        </div>
+                        <!-- Selected equipment chip -->
+                        <div id="edit_equipChip" class="equip-chip">
+                            <button type="button" class="equip-chip-clear" onclick="clearEditEquipment()">×</button>
+                            <div class="equip-chip-name" id="edit_equipChipName"></div>
+                            <div class="equip-chip-sub" id="edit_equipChipSub"></div>
+                        </div>
+                        <!-- Inline create new equipment -->
+                        <div class="inline-create" id="edit_inlineCreateEquip">
+                            <div class="inline-create-title">➕ Add New Equipment Record</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label style="font-size:10px;">Make</label>
+                                    <input id="edit_f_make" style="width:100%; padding:6px; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size:10px;">Model</label>
+                                    <input id="edit_f_model" style="width:100%; padding:6px; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px;">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label style="font-size:10px;">Serial / S/N</label>
+                                    <input id="edit_f_serial" style="width:100%; padding:6px; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size:10px;">Type</label>
+                                    <input id="edit_f_type" placeholder="e.g. Laser" style="width:100%; padding:6px; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px;">
+                                </div>
+                            </div>
+                            <div style="text-align:right; margin-top:6px;">
+                                <button type="button" onclick="document.getElementById('edit_inlineCreateEquip').classList.remove('open')" style="padding:4px 10px; font-size:11px; background:none; border:1px solid var(--border); color:var(--text); border-radius:4px;">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1;">
+                            <label style="font-size:11px; color:var(--text3);">Status</label>
+                            <select id="edit_status" style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                                ${STATUSES.map(s => `<option value="${s}" ${ticket.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:11px; color:var(--text3);">Priority</label>
+                            <select id="edit_priority" style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                                <option value="Low" ${ticket.priority === 'Low' ? 'selected' : ''}>Low</option>
+                                <option value="Medium" ${ticket.priority === 'Medium' ? 'selected' : ''}>Medium</option>
+                                <option value="High" ${ticket.priority === 'High' ? 'selected' : ''}>High</option>
+                                <option value="Emergency" ${ticket.priority === 'Emergency' ? 'selected' : ''}>Emergency</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="font-size:11px; color:var(--text3);">Scheduled Date</label>
+                        <input id="edit_date" type="date" value="${ticket.service_date || ''}" style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                    </div>
+
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1;">
+                            <label style="font-size:11px; color:var(--text3);">Start Time</label>
+                            <input id="edit_start" type="time" value="${ticket.scheduled_time || ''}" style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:11px; color:var(--text3);">End Time</label>
+                            <input id="edit_end" type="time" value="${ticket.end_time || ''}" style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="font-size:11px; color:var(--text3);">Notes / Description</label>
+                        <textarea id="edit_notes" rows="3" style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text); resize:vertical;">${ticket.notes || ticket.description || ''}</textarea>
+                    </div>
+                </div>
+
+                <div style="padding:12px 16px; background:var(--surface2); border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end;">
+                    <button onclick="closeFullTicketEditor()" 
+                            style="padding:8px 16px; border-radius:8px; background:none; border:1px solid var(--border); color:var(--text); font-weight:600;">
+                        Cancel
+                    </button>
+                    <button onclick="saveFullTicketEdit(${JSON.stringify(ticket).replace(/"/g, '&quot;')})" 
+                            style="padding:8px 20px; border-radius:8px; background:var(--gold); color:#111; font-weight:700; border:none;">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        `;
+
+        modal.innerHTML = formHTML;
+        document.body.appendChild(modal);
+
+        loadTicketCustomers();
+
+        // Initialize edit equipment from existing ticket data
+        try {
+            editSelectedEquipmentId = ticket.equipment_id || null;
+            if (ticket.equipment_make || ticket.equipment_model || ticket.serial_number) {
+                editEquipmentData = {
+                    id: ticket.equipment_id || null,
+                    manufacturer: ticket.equipment_make || '',
+                    model: ticket.equipment_model || '',
+                    serial_number: ticket.serial_number || ''
+                };
+                // Show the chip immediately
+                const chip = document.getElementById('edit_equipChip');
+                const nameEl = document.getElementById('edit_equipChipName');
+                const subEl = document.getElementById('edit_equipChipSub');
+                if (chip) chip.classList.add('show');
+                if (nameEl) nameEl.textContent = [editEquipmentData.manufacturer, editEquipmentData.model].filter(Boolean).join(' ') || 'Equipment';
+                const sku = ''; // no asset_tag in ticket usually
+                const sn = editEquipmentData.serial_number ? `SN: ${editEquipmentData.serial_number}` : 'No S/N';
+                if (subEl) subEl.textContent = sn;
+            }
+        } catch(e) {}
+
+        // Auto-select "Scheduled" in the form if the ticket is on the calendar (has date) but status is still Awaiting
+        // (the actual DB update happens on save, but UI should reflect the logical status)
+        try {
+            const statusSel = document.getElementById('edit_status');
+            const dateEl = document.getElementById('edit_date');
+            if (statusSel && dateEl && dateEl.value && statusSel.value === 'Awaiting Scheduling') {
+                statusSel.value = 'Scheduled';
+            }
+        } catch(e) {}
+    }
+
+    // Robust toast — now handles long error messages properly (wraps, stays on screen)
+    function showToast(msg, type = '') {
+        let el = document.getElementById('_toast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = '_toast';
+            document.body.appendChild(el);
+        }
+
+        const isError = (type === 'error' || type === 'danger');
+
+        // Dynamic styles: errors get wrapping + red border + more breathing room
+        el.style.cssText = `
+            position:fixed;
+            bottom:82px;
+            left:50%;
+            transform:translateX(-50%) translateY(18px);
+            max-width:calc(100vw - 18px);
+            background:var(--surface2);
+            border:${isError ? '2px solid #ef4444' : '1px solid var(--gold)'};
+            border-radius:10px;
+            padding:${isError ? '12px 15px' : '10px 16px'};
+            font-size:${isError ? '13.5px' : '14px'};
+            font-weight:600;
+            z-index:99999;
+            transition:opacity 0.25s ease, transform 0.25s ease;
+            opacity:0;
+            color:var(--text);
+            box-shadow:0 6px 20px rgba(0,0,0,0.5);
+            white-space:normal;
+            word-break:break-word;
+            overflow-wrap:anywhere;
+            text-align:left;
+            line-height:1.38;
+        `;
+
+        el.textContent = msg;
+        el.style.opacity = '1';
+        el.style.transform = 'translateX(-50%) translateY(0)';
+
+        // Tap the toast to dismiss immediately
+        el.onclick = () => {
+            clearTimeout(el._t);
+            el.style.opacity = '0';
+            el.style.transform = 'translateX(-50%) translateY(18px)';
+        };
+
+        clearTimeout(el._t);
+        const duration = isError ? 6500 : 3200;
+        el._t = setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateX(-50%) translateY(18px)';
+        }, duration);
+    }
+
+    // Saves the edited ticket back to Supabase
+    async function saveFullTicketEdit(originalTicket) {
+        const modal = document.getElementById('fullTicketEditor');
+        if (!modal) return;
+
+        // Defensive reads — prevents crashes if any input is unexpectedly missing
+        const getVal = (id) => {
+            const el = document.getElementById(id);
+            if (!el) return null;
+            if (el.tagName === 'SELECT' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                return el.value || null;
+            }
+            return null;
+        };
+
+        let editStatus = getVal('edit_status');
+        const editDate = getVal('edit_date');
+        // Auto-promote to Scheduled when placed on the calendar (has a service date)
+        if (editDate && editStatus === 'Awaiting Scheduling') {
+            editStatus = 'Scheduled';
+        }
+
+        // Equipment for edit: prefer selected from search, or values from inline create form, or typed search, or previous data
+        let equipMake = '';
+        let equipModel = '';
+        let equipSerial = '';
+        const editEquipId = editSelectedEquipmentId;
+        if (editEquipId && editEquipmentData) {
+            equipMake = editEquipmentData.manufacturer || '';
+            equipModel = editEquipmentData.model || '';
+            equipSerial = editEquipmentData.serial_number || '';
+        } else {
+            const inlineOpen = document.getElementById('edit_inlineCreateEquip') && document.getElementById('edit_inlineCreateEquip').classList.contains('open');
+            if (inlineOpen) {
+                equipMake = (document.getElementById('edit_f_make') || {}).value || '';
+                equipModel = (document.getElementById('edit_f_model') || {}).value || '';
+                equipSerial = (document.getElementById('edit_f_serial') || {}).value || '';
+            } else {
+                // typed in search or previous
+                const typed = (document.getElementById('edit_equipSearch') || {}).value || '';
+                if (typed) {
+                    const parts = typed.split(' ');
+                    equipMake = parts[0] || '';
+                    equipModel = parts.slice(1).join(' ') || '';
+                } else if (editEquipmentData) {
+                    equipMake = editEquipmentData.manufacturer || '';
+                    equipModel = editEquipmentData.model || '';
+                    equipSerial = editEquipmentData.serial_number || '';
+                }
+            }
+        }
+
+        // Auto-add to Equipment table if this laser/equipment isn't already there (for edit path)
+        await ensureEquipmentInTable(currentUserOrgId, equipMake, equipModel, equipSerial);
+
+        const updated = {
+            customer_name: (getVal('edit_customer') || '').trim() || null,
+            status: editStatus,
+            priority: getVal('edit_priority'),
+            service_date: editDate,
+            scheduled_time: getVal('edit_start'),
+            end_time: getVal('edit_end'),
+            notes: (getVal('edit_notes') || '').trim() || null,
+            equipment_make: equipMake || null,
+            equipment_model: equipModel || null,
+            serial_number: equipSerial || null,
+            updated_at: new Date().toISOString()
+        };
+
+        // Remove any null/undefined keys so we don't send garbage
+        Object.keys(updated).forEach(k => {
+            if (updated[k] === undefined) delete updated[k];
+        });
+
+        console.log('[saveFullTicketEdit] sending update for id=', originalTicket.id, 'payload=', JSON.stringify(updated));
+
+        try {
+            // Use .select() to verify the row was actually updated (RLS policies can cause silent no-op on UPDATE even without error)
+            const { data: updatedRows, error } = await supabaseClient
+                .from('service_tickets')
+                .update(updated)
+                .eq('id', originalTicket.id)
+                .select()
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (!updatedRows) {
+                modal.remove();
+                editSelectedEquipmentId = null;
+                editEquipmentData = null;
+                showToast('UPDATE blocked by RLS (no row returned, even though no JS error). Open the ticket full page and note the "Org ID (debug)" value at the top. Your user_profiles.organization_id must match the ticket\'s organization_id (or the ticket must be assigned to you). Re-run the service_tickets UPDATE policy below, then rebuild + full uninstall/reinstall.', 'error');
+                if (!Array.isArray(ticketCustomers) || ticketCustomers.length === 0) {
+                    await loadTicketCustomers();
+                }
+                await loadTickets();
+                renderView();
+                return;
+            }
+
+            modal.remove();
+            editSelectedEquipmentId = null;
+            editEquipmentData = null;
+            showToast('Ticket updated successfully', 'success');
+
+            // Ensure customers loaded before re-fetch so address enrichment works on reload
+            if (!Array.isArray(ticketCustomers) || ticketCustomers.length === 0) {
+                await loadTicketCustomers();
+            }
+
+            // IMPORTANT: Re-fetch from server instead of trusting local optimistic merge.
+            // This guarantees end_time (and any other field) actually persisted.
+            await loadTickets();
+            renderView();
+
+        } catch (err) {
+            // Extract the real error message (Supabase errors are often objects)
+            let errMsg = 'Unknown error';
+            if (err) {
+                if (err.message) errMsg = err.message;
+                else if (err.error && err.error.message) errMsg = err.error.message;
+                else if (typeof err === 'object') {
+                    try { errMsg = JSON.stringify(err, Object.getOwnPropertyNames(err)); } catch(e) { errMsg = String(err); }
+                } else {
+                    errMsg = String(err);
+                }
+            }
+            console.error('[saveFullTicketEdit] DETAILED ERROR:', errMsg, err);
+            const display = errMsg.length > 320 ? errMsg.slice(0, 315) + '… (full error in logcat)' : errMsg;
+            showToast('Save failed: ' + display, 'error');
+        }
+    }
+
+    function navPrev() {
+        if (currentView === 'month') {
+            cursor.setMonth(cursor.getMonth() - 1);
+        } else if (currentView === 'week') {
+            cursor.setDate(cursor.getDate() - 7);
+        } else if (currentView === 'day') {
+            cursor.setDate(cursor.getDate() - 1);
+        } else {
+            // agenda: move window back ~14 days (allows viewing past periods for completed tickets etc.)
+            cursor.setDate(cursor.getDate() - 14);
+        }
+        renderView();
+    }
+
+    function navNext() {
+        if (currentView === 'month') {
+            cursor.setMonth(cursor.getMonth() + 1);
+        } else if (currentView === 'week') {
+            cursor.setDate(cursor.getDate() + 7);
+        } else if (currentView === 'day') {
+            cursor.setDate(cursor.getDate() + 1);
+        } else {
+            cursor.setDate(cursor.getDate() + 14);
+        }
+        renderView();
+    }
+
+    function goToday() {
+        cursor = new Date();
+        renderView();
+    }
+
+    function toggleMyTasksFilter() {
+        showMyTasksOnly = !showMyTasksOnly;
+        updateMyTasksToggle();
+        renderView();
+    }
+
+    function toggleAgendaSort() {
+        agendaSortDesc = !agendaSortDesc;
+        // persist
+        try {
+            const s = JSON.parse(localStorage.getItem('tsp_settings') || '{}');
+            s.agendaSortDesc = agendaSortDesc;
+            localStorage.setItem('tsp_settings', JSON.stringify(s));
+        } catch(e) {}
+        if (currentView === 'agenda') renderView();
+        else {
+            // update button label if visible
+            const btn = document.getElementById('agendaSortBtn');
+            if (btn) btn.textContent = agendaSortDesc ? 'Newest ▲' : 'Oldest ▼';
+        }
+    }
+
+    function updateMyTasksToggle() {
+        const btn = document.getElementById('myTasksToggle');
+        if (!btn) return;
+        if (showMyTasksOnly) {
+            btn.style.background = 'var(--gold)';
+            btn.style.color = '#111';
+            btn.style.border = '1px solid var(--gold)';
+        } else {
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.style.border = '';
+        }
+    }
+
+    function openNewTicket() {
+        // Guard: only management roles can create new tickets
+        const managementRoles = ['admin', 'dispatcher', 'service_manager'];
+        if (!managementRoles.includes(currentUserRole)) {
+            showToast('Only admins, dispatchers, and service managers can create new tickets.', 'error');
+            return;
+        }
+
+        // Remove any previous new ticket modal
+        const old = document.getElementById('newTicketModal');
+        if (old) old.remove();
+
+        // Reset customer/equipment selection for new ticket
+        selectedNewTicketCustomerOrgId = null;
+        selectedNewTicketCustomerNameForFilter = null;
+        selectedEquipmentId = null;
+        window._selectedEquipmentData = null;
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        const modal = document.createElement('div');
+        modal.id = 'newTicketModal';
+        modal.style.cssText = `
+            position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10000;
+            display:flex; align-items:center; justify-content:center; padding:12px;
+        `;
+
+        const formHTML = `
+            <div style="background:var(--surface); width:100%; max-width:420px; border-radius:14px; border:2px solid var(--gold); overflow:hidden;">
+                <div style="padding:14px 16px; background:var(--surface2); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-weight:700; color:var(--gold);">New Service Ticket</div>
+                    <button onclick="document.getElementById('newTicketModal').remove()" style="background:none; border:none; color:var(--text); font-size:22px; line-height:1;">×</button>
+                </div>
+
+                <div style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+                    <div>
+                        <label style="font-size:11px; color:var(--text3);">Customer Name *</label>
+                        <div class="cust-search-wrap" style="position:relative;">
+                            <input id="new_customer" placeholder="Search or type customer name..." autocomplete="off"
+                                   oninput="onNewTicketCustSearch()" onfocus="onNewTicketCustSearch()"
+                                   style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                            <div class="cust-dropdown" id="newTicketCustDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:var(--surface2); border:1px solid var(--gold); border-radius:8px; max-height:200px; overflow-y:auto; z-index:100;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Equipment search (ported/improved from reference webapp) -->
+                    <div>
+                        <label style="font-size:11px; color:var(--text3);">Equipment (optional)</label>
+                        <div class="search-wrap">
+                            <input type="text" id="equipSearch" placeholder="Search by SKU, serial, make or model..." autocomplete="off"
+                                   oninput="searchEquipment(this.value)"
+                                   style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                            <div class="search-results" id="equipResults"></div>
+                        </div>
+                        <!-- Selected equipment chip -->
+                        <div id="equipChip" class="equip-chip">
+                            <button type="button" class="equip-chip-clear" onclick="clearEquipment()">×</button>
+                            <div class="equip-chip-name" id="equipChipName"></div>
+                            <div class="equip-chip-sub" id="equipChipSub"></div>
+                        </div>
+                        <!-- Inline create new equipment -->
+                        <div class="inline-create" id="inlineCreateEquip">
+                            <div class="inline-create-title">➕ Add New Equipment Record</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Manufacturer</label>
+                                    <input type="text" id="f_make" placeholder="e.g. Lumenis">
+                                </div>
+                                <div class="form-group">
+                                    <label>Model</label>
+                                    <input type="text" id="f_model" placeholder="e.g. AcuPulse">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Serial Number</label>
+                                    <input type="text" id="f_serial" placeholder="SN-12345">
+                                </div>
+                                <div class="form-group">
+                                    <label>Type</label>
+                                    <input type="text" id="f_type" placeholder="Laser / Ultrasound">
+                                </div>
+                            </div>
+                            <div style="text-align:right; margin-top:6px;">
+                                <button type="button" onclick="document.getElementById('inlineCreateEquip').classList.remove('open')" style="padding:4px 10px; font-size:11px; background:none; border:1px solid var(--border); color:var(--text); border-radius:4px;">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1;">
+                            <label style="font-size:11px; color:var(--text3);">Status</label>
+                            <select id="new_status" style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                                ${STATUSES.map(s => `<option value="${s}" ${s === 'Awaiting Scheduling' ? 'selected' : ''}>${s}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:11px; color:var(--text3);">Priority</label>
+                            <select id="new_priority" style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                                <option value="Low">Low</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="High">High</option>
+                                <option value="Emergency">Emergency</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="font-size:11px; color:var(--text3);">Service Date</label>
+                        <input id="new_date" type="date" value="${todayStr}"
+                               style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                    </div>
+
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1;">
+                            <label style="font-size:11px; color:var(--text3);">Start Time</label>
+                            <input id="new_start" type="time"
+                                   style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:11px; color:var(--text3);">End Time</label>
+                            <input id="new_end" type="time"
+                                   style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="font-size:11px; color:var(--text3);">Notes / Description</label>
+                        <textarea id="new_notes" rows="3" placeholder="Describe the service call..."
+                                  style="width:100%; padding:8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text); resize:vertical;"></textarea>
+                    </div>
+                </div>
+
+                <div style="padding:12px 16px; background:var(--surface2); border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end;">
+                    <button onclick="document.getElementById('newTicketModal').remove()" 
+                            style="padding:8px 16px; border-radius:8px; background:none; border:1px solid var(--border); color:var(--text); font-weight:600;">
+                        Cancel
+                    </button>
+                    <button onclick="createNewTicket()" 
+                            style="padding:8px 20px; border-radius:8px; background:var(--gold); color:#111; font-weight:700; border:none;">
+                        Create Ticket
+                    </button>
+                </div>
+            </div>
+        `;
+
+        modal.innerHTML = formHTML;
+        document.body.appendChild(modal);
+
+        loadTicketCustomers();
+
+        // Auto-update status to Scheduled in the UI when a date is selected (the actual promotion happens on save)
+        try {
+            const newDateEl = document.getElementById('new_date');
+            const newStatusEl = document.getElementById('new_status');
+            if (newDateEl && newStatusEl) {
+                const updateStatusForDate = () => {
+                    if (newDateEl.value && newStatusEl.value === 'Awaiting Scheduling') {
+                        newStatusEl.value = 'Scheduled';
+                    }
+                };
+                newDateEl.addEventListener('change', updateStatusForDate);
+                newDateEl.addEventListener('input', updateStatusForDate);
+                if (newDateEl.value) updateStatusForDate();
+            }
+        } catch(e) {}
+
+        // Help ensure the first input gets focus so IME/keyboard shows reliably on Android WebView
+        setTimeout(() => {
+            const custInput = document.getElementById('new_customer');
+            if (custInput) {
+                custInput.focus();
+            }
+        }, 150);
+    }
+
+    async function generateTicketNumber(orgId) {
+        if (!orgId) {
+            return 'TMP-' + Date.now().toString().slice(-6);
+        }
+        try {
+            const { data, error } = await supabaseClient
+                .rpc('generate_ticket_number', { org_id: orgId });
+            if (error) throw error;
+            return data; // e.g. "LS-0042" or whatever your prefix is
+        } catch (e) {
+            // Fallback if RPC not yet created or fails (very unlikely to collide)
+            console.warn('RPC generate_ticket_number failed, using fallback:', e.message);
+            return 'TMP-' + Date.now().toString().slice(-6);
+        }
+    }
+
+    async function createNewTicket() {
+        const modal = document.getElementById('newTicketModal');
+        if (!modal) return;
+
+        const customer = (document.getElementById('new_customer').value || '').trim();
+        if (!customer) {
+            alert('Customer name is required.');
+            return;
+        }
+
+        let ticketStatus = document.getElementById('new_status').value;
+        const ticketDate = document.getElementById('new_date').value;
+        // Auto-promote to Scheduled when placed on the calendar (has a service date)
+        if (ticketDate && ticketStatus === 'Awaiting Scheduling') {
+            ticketStatus = 'Scheduled';
+        }
+
+        const newTicket = {
+            customer_name: customer,
+            status: ticketStatus,
+            priority: document.getElementById('new_priority').value,
+            service_date: ticketDate || null,
+            scheduled_time: document.getElementById('new_start').value || null,
+            end_time: document.getElementById('new_end').value || null,
+            notes: (document.getElementById('new_notes').value || '').trim() || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        // Denormalize customer address/contact from the selected organizations (type=customer) row.
+        // This ensures the full ticket page, navigation, and "Create Service Report" all see the address.
+        if (selectedNewTicketCustomerOrgId && Array.isArray(ticketCustomers)) {
+            const custOrg = ticketCustomers.find(c => c.id === selectedNewTicketCustomerOrgId);
+            if (custOrg) {
+                if (custOrg.address) newTicket.customer_address = custOrg.address;
+                if (custOrg.city) newTicket.customer_city = custOrg.city;
+                if (custOrg.state) newTicket.customer_state = custOrg.state;
+                if (custOrg.phone) newTicket.customer_phone = custOrg.phone;
+                if (custOrg.email) newTicket.customer_email = custOrg.email;
+                // Optionally store the link for future joins (safe even if column doesn't exist on some installs)
+                // newTicket.customer_organization_id = custOrg.id;
+            }
+        }
+
+        // Attach organization for proper scoping
+        if (currentUserOrgId) {
+            newTicket.organization_id = currentUserOrgId;
+        }
+
+        // Only attach user to assigned_to if that column exists in your schema.
+        if (currentUser?.id) {
+            newTicket.assigned_to = currentUser.id;
+        }
+
+        // Note: service_tickets table does not have a created_by column (uses assigned_to for user).
+        // Diagnostic queries for tickets must use assigned_to (not created_by).
+
+        // Generate guaranteed unique ticket number using org prefix + sequence (via RPC)
+        newTicket.ticket_number = await generateTicketNumber(currentUserOrgId);
+
+        // Equipment: use selected or create inline if the create panel is open
+        let equipId = selectedEquipmentId;
+        if (!equipId) {
+            const inlineOpen = document.getElementById('inlineCreateEquip') && document.getElementById('inlineCreateEquip').classList.contains('open');
+            // Use the selected customer's org for equipment ownership if available (preferred for new tickets)
+            const equipmentOrgId = selectedNewTicketCustomerOrgId || currentUserOrgId;
+            if (inlineOpen && equipmentOrgId) {
+                const newEquip = await createEquipmentRecord(equipmentOrgId);
+                if (newEquip) {
+                    equipId = newEquip.id;
+                    // also capture make/model for display/legacy
+                    newTicket.equipment_make = newEquip.manufacturer || (document.getElementById('f_make')||{}).value || null;
+                    newTicket.equipment_model = newEquip.model || (document.getElementById('f_model')||{}).value || null;
+                }
+            } else {
+                // If user typed something in search but didn't select/create, still capture as free text
+                const typed = (document.getElementById('equipSearch') || {}).value || '';
+                if (typed) {
+                    // naive split for make/model
+                    const parts = typed.split(' ');
+                    newTicket.equipment_make = parts[0] || null;
+                    newTicket.equipment_model = parts.slice(1).join(' ') || null;
+                }
+            }
+        } else if (window._selectedEquipmentData) {
+            const eq = window._selectedEquipmentData;
+            newTicket.equipment_make = eq.manufacturer || null;
+            newTicket.equipment_model = eq.model || null;
+            // If your tickets table has equipment_id column, you can add:
+            // newTicket.equipment_id = equipId;
+        }
+
+        // Auto-add to Equipment table if not present (covers typed, selected, or created cases)
+        await ensureEquipmentInTable(
+            currentUserOrgId || equipmentOrgId, 
+            newTicket.equipment_make, 
+            newTicket.equipment_model, 
+            null  // serial not captured in new ticket form for serviced equip in this flow
+        );
+
+        const btns = modal.querySelectorAll('button');
+        btns.forEach(b => b.disabled = true);
+
+        try {
+            const { data, error } = await supabaseClient
+                .from('service_tickets')
+                .insert([newTicket])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // clean equipment and customer selection state
+            selectedEquipmentId = null;
+            window._selectedEquipmentData = null;
+            selectedNewTicketCustomerOrgId = null;
+            selectedNewTicketCustomerNameForFilter = null;
+
+            modal.remove();
+            showToast('Ticket created successfully', 'success');
+
+            // Add to local cache and refresh view
+            if (data) {
+                tickets.unshift(data);
+                enrichTicketsWithCustomerData(); // in case of any name-based enrichment needed
+            }
+            renderView();
+
+        } catch (err) {
+            console.error('Create ticket error:', err);
+            showToast('Failed to create ticket: ' + (err.message || err), 'error');
+            btns.forEach(b => b.disabled = false);
+        }
+    }
+
+    // ========== CUSTOMER AUTOCOMPLETE FOR NEW TICKET ==========
+    let ticketCustomers = [];
+
+    async function loadTicketCustomers() {
+        try {
+            const { data } = await supabaseClient
+                .from('organizations')
+                .select('id, name, address, city, state, phone, email')
+                .eq('type', 'customer')
+                .order('name')
+                .limit(200);
+            ticketCustomers = data || [];
+        } catch(e) {}
+    }
+
+    async function loadEngineers() {
+        if (!currentUserOrgId) {
+            engineers = [];
+            return;
+        }
+        try {
+            const { data } = await supabaseClient
+                .from('user_profiles')
+                .select('id, first_name, last_name, email, role')
+                .eq('organization_id', currentUserOrgId)
+                .order('first_name');
+            engineers = data || [];
+        } catch (e) {
+            console.warn('Failed to load engineers for name resolution', e);
+            engineers = [];
+        }
+    }
+
+    function onNewTicketCustSearch() {
+        const input = document.getElementById('new_customer');
+        const dropdown = document.getElementById('newTicketCustDropdown');
+        if (!input || !dropdown) return;
+
+        // If user edited the customer name after previously selecting one, clear the org ID
+        // so that equipment search no longer filters to the old customer's equipment
+        if (selectedNewTicketCustomerNameForFilter && input.value.trim() !== selectedNewTicketCustomerNameForFilter) {
+            selectedNewTicketCustomerOrgId = null;
+            selectedNewTicketCustomerNameForFilter = null;
+        }
+
+        const q = input.value.trim().toLowerCase();
+        dropdown.innerHTML = '';
+        dropdown.style.display = 'block';
+
+        const matches = q
+            ? ticketCustomers.filter(c => c.name.toLowerCase().includes(q))
+            : ticketCustomers.slice(0, 10);
+
+        matches.forEach(org => {
+            const div = document.createElement('div');
+            div.className = 'cust-option';
+            const loc = [org.city, org.state].filter(Boolean).join(', ');
+            div.innerHTML = `<div class="cust-option-name">${org.name}</div>` + (loc ? `<div class="cust-option-sub">📍 ${loc}</div>` : '');
+            div.onclick = () => {
+                input.value = org.name;
+                selectedNewTicketCustomerOrgId = org.id;
+                selectedNewTicketCustomerNameForFilter = org.name;
+                dropdown.style.display = 'none';
+                // Clear any previously selected equipment (since customer changed)
+                clearEquipment();
+            };
+            dropdown.appendChild(div);
+        });
+
+        if (q && !matches.find(m => m.name.toLowerCase() === q)) {
+            const div = document.createElement('div');
+            div.className = 'cust-option';
+            div.innerHTML = `<div class="cust-option-new">＋ Use "${input.value.trim()}" (new customer)</div>`;
+            div.onclick = () => {
+                dropdown.style.display = 'none';
+                selectedNewTicketCustomerOrgId = null;  // new/typed customer, no existing org id for equipment filter
+                selectedNewTicketCustomerNameForFilter = null;
+            };
+            dropdown.appendChild(div);
+        }
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        const dropdown = document.getElementById('newTicketCustDropdown');
+        const input = document.getElementById('new_customer');
+        if (dropdown && input && !input.parentElement.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    // Listen for settings changes (showCompleted etc) so that toggling in Settings page
+    // immediately affects the calendar views (past/completed visibility etc).
+    // Note: navigating back from settings usually does a full page reload anyway.
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'tsp_settings') {
+            loadVisibilitySettings();
+            renderView();
+        }
+    });
+
+    // Edit ticket customer search (similar)
+    function onEditTicketCustSearch() {
+        const input = document.getElementById('edit_customer');
+        const dropdown = document.getElementById('editTicketCustDropdown');
+        if (!input || !dropdown) return;
+
+        const q = input.value.trim().toLowerCase();
+        dropdown.innerHTML = '';
+        dropdown.style.display = 'block';
+
+        const matches = q
+            ? ticketCustomers.filter(c => c.name.toLowerCase().includes(q))
+            : ticketCustomers.slice(0, 10);
+
+        matches.forEach(org => {
+            const div = document.createElement('div');
+            div.className = 'cust-option';
+            const loc = [org.city, org.state].filter(Boolean).join(', ');
+            div.innerHTML = `<div class="cust-option-name">${org.name}</div>` + (loc ? `<div class="cust-option-sub">📍 ${loc}</div>` : '');
+            div.onclick = () => {
+                input.value = org.name;
+                dropdown.style.display = 'none';
+            };
+            dropdown.appendChild(div);
+        });
+
+        if (q && !matches.find(m => m.name.toLowerCase() === q)) {
+            const div = document.createElement('div');
+            div.className = 'cust-option';
+            div.innerHTML = `<div class="cust-option-new">＋ Use "${input.value.trim()}" (new customer)</div>`;
+            div.onclick = () => dropdown.style.display = 'none';
+            dropdown.appendChild(div);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  EQUIPMENT SEARCH + CREATE (ported from reference webapp files for richer New Ticket)
+    // ═══════════════════════════════════════════════════
+    async function searchEquipment(query) {
+        clearTimeout(equipSearchTimer);
+        const results = document.getElementById('equipResults');
+        if (!results) return;
+        if (!query || query.length < 2) { results.classList.remove('open'); return; }
+
+        equipSearchTimer = setTimeout(async () => {
+            try {
+                const q = query.trim();
+                let dbQuery = supabaseClient
+                    .from('equipment')
+                    .select('id, manufacturer, model, serial_number, asset_tag, equipment_type, status, organization_id')
+                    .neq('status', 'Decommissioned');
+
+                const filterOrgId = selectedNewTicketCustomerOrgId || null;
+                if (filterOrgId) {
+                    // strict: only equipment owned by the selected customer
+                    dbQuery = dbQuery.eq('organization_id', filterOrgId);
+                }
+
+                dbQuery = dbQuery
+                    .or(`asset_tag.ilike.%${q}%,serial_number.ilike.%${q}%,model.ilike.%${q}%,manufacturer.ilike.%${q}%`)
+                    .limit(12);
+
+                const { data } = await dbQuery;
+                results.innerHTML = '';
+
+                if (data && data.length > 0) {
+                    const orgId = filterOrgId || currentUserOrgId || null;
+                    let toShow = data;
+                    if (!filterOrgId && orgId) {
+                        // no customer selected for new ticket: fall back to previous behavior (prioritize user's org equipment)
+                        toShow = [...data.filter(e => e.organization_id === orgId), ...data.filter(e => e.organization_id !== orgId)];
+                    }
+
+                    toShow.forEach(eq => {
+                        const item = document.createElement('div');
+                        item.className = 'search-result-item';
+                        const sku  = eq.asset_tag ? `SKU: ${eq.asset_tag} · ` : '';
+                        const sn   = eq.serial_number ? `SN: ${eq.serial_number}` : 'No S/N';
+                        const mine = orgId && eq.organization_id === orgId;
+                        const star = mine ? (filterOrgId ? ' <span style="color:var(--gold);font-size:10px;">★ Customer</span>' : ' <span style="color:var(--gold);font-size:10px;">★</span>') : '';
+                        item.innerHTML = `
+                            <div class="search-result-name">${eq.manufacturer || ''} ${eq.model || ''}${star}</div>
+                            <div class="search-result-sub">${sku}${sn} · ${eq.equipment_type || ''}</div>
+                        `;
+                        item.onclick = () => selectEquipment(eq);
+                        results.appendChild(item);
+                    });
+                }
+
+                // Always offer create new
+                const createBtn = document.createElement('div');
+                createBtn.className = 'search-create-btn';
+                createBtn.innerHTML = `➕ Add "<strong>${query}</strong>" as new equipment`;
+                createBtn.onclick = () => showEquipmentCreate(query);
+                results.appendChild(createBtn);
+
+                results.classList.add('open');
+            } catch (e) { console.warn('Equipment search error', e); }
+        }, 280);
+    }
+
+    function selectEquipment(eq) {
+        selectedEquipmentId = eq.id;
+        window._selectedEquipmentData = eq;
+        const results = document.getElementById('equipResults');
+        if (results) results.classList.remove('open');
+        const inline = document.getElementById('inlineCreateEquip');
+        if (inline) inline.classList.remove('open');
+
+        const chip = document.getElementById('equipChip');
+        if (chip) chip.classList.add('show');
+        const nameEl = document.getElementById('equipChipName');
+        const subEl = document.getElementById('equipChipSub');
+        if (nameEl) nameEl.textContent = [eq.manufacturer, eq.model].filter(Boolean).join(' ') || 'Equipment';
+        const sku = eq.asset_tag ? `SKU: ${eq.asset_tag} · ` : '';
+        const sn  = eq.serial_number ? `SN: ${eq.serial_number}` : 'No S/N';
+        if (subEl) subEl.textContent = sku + sn + (eq.equipment_type ? ' · ' + eq.equipment_type : '');
+
+        // Clear search input
+        const inp = document.getElementById('equipSearch');
+        if (inp) inp.value = '';
+    }
+
+    function clearEquipment() {
+        selectedEquipmentId = null;
+        window._selectedEquipmentData = null;
+        const chip = document.getElementById('equipChip');
+        if (chip) chip.classList.remove('show');
+        const inp = document.getElementById('equipSearch');
+        if (inp) inp.value = '';
+        const inline = document.getElementById('inlineCreateEquip');
+        if (inline) inline.classList.remove('open');
+    }
+
+    function showEquipmentCreate(query) {
+        const results = document.getElementById('equipResults');
+        if (results) results.classList.remove('open');
+        const inline = document.getElementById('inlineCreateEquip');
+        if (inline) {
+            const modelIn = document.getElementById('f_model');
+            if (modelIn) modelIn.value = query || '';
+            inline.classList.add('open');
+        }
+    }
+
+    async function createEquipmentRecord(orgId) {
+        // Support both new-ticket IDs and edit-ticket IDs
+        const makeEl = document.getElementById('f_make') || document.getElementById('edit_f_make');
+        const modelEl = document.getElementById('f_model') || document.getElementById('edit_f_model');
+        const serialEl = document.getElementById('f_serial') || document.getElementById('edit_f_serial');
+        const typeEl = document.getElementById('f_type') || document.getElementById('edit_f_type');
+
+        const make   = (makeEl || {}).value || '';
+        const model  = (modelEl || {}).value || '';
+        const serial = (serialEl || {}).value || '';
+        const etype  = (typeEl || {}).value || '';
+        if (!make && !model) return null;
+
+        try {
+            const payload = {
+                organization_id: orgId || currentUserOrgId || null,
+                manufacturer: make || null,
+                model: model || null,
+                serial_number: serial || null,
+                equipment_type: etype || null,
+                status: 'Active'
+            };
+            const { data, error } = await supabaseClient
+                .from('equipment')
+                .insert([payload])
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        } catch (e) {
+            console.error('Create equipment failed', e);
+            return null;
+        }
+    }
+
+    // Ensure equipment record exists in the canonical Equipment table.
+    // Used for auto-adding lasers/equipment from tickets (and SRs in other file).
+    // Matches preferably by serial, then by make+model for the org.
+    async function ensureEquipmentInTable(orgId, manufacturer, model, serialNumber) {
+        if (!orgId || (!manufacturer && !model && !serialNumber)) return null;
+        try {
+            // Try find existing match
+            let matchQuery = supabaseClient
+                .from('equipment')
+                .select('id')
+                .eq('organization_id', orgId);
+            if (serialNumber) {
+                matchQuery = matchQuery.eq('serial_number', serialNumber);
+            } else if (manufacturer && model) {
+                matchQuery = matchQuery.eq('manufacturer', manufacturer).eq('model', model);
+            } else if (manufacturer) {
+                matchQuery = matchQuery.eq('manufacturer', manufacturer);
+            } else if (model) {
+                matchQuery = matchQuery.eq('model', model);
+            }
+            const { data: existing } = await matchQuery.maybeSingle();
+            if (existing && existing.id) return existing.id;
+
+            // Insert as new - ensure model is never null (table has NOT NULL constraint)
+            const safeModel = model || manufacturer || serialNumber || 'Unknown Laser';
+            const { data: inserted, error } = await supabaseClient
+                .from('equipment')
+                .insert([{
+                    organization_id: orgId,
+                    manufacturer: manufacturer || null,
+                    model: safeModel,
+                    serial_number: serialNumber || null,
+                    status: 'Active'
+                }])
+                .select('id')
+                .single();
+            if (error) throw error;
+            console.log('Auto-added missing equipment to table from ticket/SR:', manufacturer, model, serialNumber);
+            return inserted ? inserted.id : null;
+        } catch (e) {
+            console.warn('ensureEquipmentInTable non-fatal:', e);
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  EDIT TICKET EQUIPMENT (parallel to new ticket for isolation)
+    // ═══════════════════════════════════════════════════
+    async function searchEditEquipment(query) {
+        clearTimeout(equipSearchTimer);
+        const results = document.getElementById('edit_equipResults');
+        if (!results) return;
+        if (!query || query.length < 2) { results.classList.remove('open'); return; }
+
+        equipSearchTimer = setTimeout(async () => {
+            try {
+                const q = query.trim();
+                let dbQuery = supabaseClient
+                    .from('equipment')
+                    .select('id, manufacturer, model, serial_number, asset_tag, equipment_type, status, organization_id')
+                    .neq('status', 'Decommissioned');
+
+                // For edit, prefer equipment from same customer org if we have one from the ticket
+                const filterOrgId = (editEquipmentData && editEquipmentData.organization_id) || selectedNewTicketCustomerOrgId || null;
+                if (filterOrgId) {
+                    dbQuery = dbQuery.eq('organization_id', filterOrgId);
+                }
+
+                dbQuery = dbQuery
+                    .or(`asset_tag.ilike.%${q}%,serial_number.ilike.%${q}%,model.ilike.%${q}%,manufacturer.ilike.%${q}%`)
+                    .limit(12);
+
+                const { data } = await dbQuery;
+                results.innerHTML = '';
+
+                if (data && data.length > 0) {
+                    const orgId = filterOrgId || currentUserOrgId || null;
+                    let toShow = data;
+                    if (!filterOrgId && orgId) {
+                        toShow = [...data.filter(e => e.organization_id === orgId), ...data.filter(e => e.organization_id !== orgId)];
+                    }
+
+                    toShow.forEach(eq => {
+                        const item = document.createElement('div');
+                        item.className = 'search-result-item';
+                        const sku  = eq.asset_tag ? `SKU: ${eq.asset_tag} · ` : '';
+                        const sn   = eq.serial_number ? `SN: ${eq.serial_number}` : 'No S/N';
+                        const mine = orgId && eq.organization_id === orgId;
+                        const star = mine ? (filterOrgId ? ' <span style="color:var(--gold);font-size:10px;">★ Customer</span>' : ' <span style="color:var(--gold);font-size:10px;">★</span>') : '';
+                        item.innerHTML = `
+                            <div class="search-result-name">${eq.manufacturer || ''} ${eq.model || ''}${star}</div>
+                            <div class="search-result-sub">${sku}${sn} · ${eq.equipment_type || ''}</div>
+                        `;
+                        item.onclick = () => selectEditEquipment(eq);
+                        results.appendChild(item);
+                    });
+                }
+
+                // Always offer create new
+                const createBtn = document.createElement('div');
+                createBtn.className = 'search-create-btn';
+                createBtn.innerHTML = `➕ Add "<strong>${query}</strong>" as new equipment`;
+                createBtn.onclick = () => showEditEquipmentCreate(query);
+                results.appendChild(createBtn);
+
+                results.classList.add('open');
+            } catch (e) { console.warn('Edit equipment search error', e); }
+        }, 280);
+    }
+
+    function selectEditEquipment(eq) {
+        editSelectedEquipmentId = eq.id;
+        editEquipmentData = eq;
+        const results = document.getElementById('edit_equipResults');
+        if (results) results.classList.remove('open');
+        const inline = document.getElementById('edit_inlineCreateEquip');
+        if (inline) inline.classList.remove('open');
+
+        const chip = document.getElementById('edit_equipChip');
+        if (chip) chip.classList.add('show');
+        const nameEl = document.getElementById('edit_equipChipName');
+        const subEl = document.getElementById('edit_equipChipSub');
+        if (nameEl) nameEl.textContent = [eq.manufacturer, eq.model].filter(Boolean).join(' ') || 'Equipment';
+        const sku = eq.asset_tag ? `SKU: ${eq.asset_tag} · ` : '';
+        const sn  = eq.serial_number ? `SN: ${eq.serial_number}` : 'No S/N';
+        if (subEl) subEl.textContent = sku + sn + (eq.equipment_type ? ' · ' + eq.equipment_type : '');
+
+        // Clear search input
+        const inp = document.getElementById('edit_equipSearch');
+        if (inp) inp.value = '';
+    }
+
+    function clearEditEquipment() {
+        editSelectedEquipmentId = null;
+        editEquipmentData = null;
+        const chip = document.getElementById('edit_equipChip');
+        if (chip) chip.classList.remove('show');
+        const inp = document.getElementById('edit_equipSearch');
+        if (inp) inp.value = '';
+        const inline = document.getElementById('edit_inlineCreateEquip');
+        if (inline) inline.classList.remove('open');
+    }
+
+    function showEditEquipmentCreate(query) {
+        const results = document.getElementById('edit_equipResults');
+        if (results) results.classList.remove('open');
+        const inline = document.getElementById('edit_inlineCreateEquip');
+        if (inline) {
+            const modelIn = document.getElementById('edit_f_model');
+            if (modelIn) modelIn.value = query || '';
+            inline.classList.add('open');
+        }
+    }
+
+    async function navigateTo(page) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session && session.access_token) {
+                const sep = page.includes('?') ? '&' : '?';
+                window.location.href = page + sep + '_s=' + btoa(JSON.stringify(session));
+                return;
+            }
+        } catch (e) {}
+        window.location.href = page;
+    }
+
+    /* ── Ticket actions restored from robust previous version ── */
+    function navigateToTicket() {
+        if (!selectedTicket) return;
+        const t = selectedTicket;
+        // Build best address we have (direct, denormalized, or from enriched _customerOrg)
+        const org = t._customerOrg || {};
+        let addr = [t.address, t.city, t.state, t.zip].filter(Boolean).join(', ');
+        if (!addr) addr = [t.customer_address, t.customer_city, t.customer_state].filter(Boolean).join(', ');
+        if (!addr) addr = [org.address, org.city, org.state].filter(Boolean).join(', ');
+        if (!addr) {
+            if (typeof showToast === 'function') showToast('No address on file for navigation', 'error');
+            return;
+        }
+        // geo: URI launches the native Maps app / chooser on Android (best for "start navigation")
+        const geo = 'geo:0,0?q=' + encodeURIComponent(addr);
+        // Fallback web link (Google Maps directions)
+        const web = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr);
+
+        if (window.Android && typeof Android.openUrl === 'function') {
+            try {
+                Android.openUrl(geo);
+            } catch (e) {
+                Android.openUrl(web);
+            }
+        } else {
+            // Web / fallback
+            window.open(web, '_blank');
+        }
+    }
+
+    function createServiceReportFromTicket() {
+        if (!selectedTicket) return;
+        const t = selectedTicket;
+        const params = new URLSearchParams();
+
+        // Customer info (denormalized on ticket or direct fields, or enriched from customer org)
+        if (t.customer_name) params.set('cust_name', t.customer_name);
+        const org = t._customerOrg || {};
+        const cAddr = t.customer_address || t.address || org.address || '';
+        if (cAddr) params.set('cust_address', cAddr);
+        if (t.customer_city || t.city || org.city) params.set('cust_city', t.customer_city || t.city || org.city);
+        if (t.customer_state || t.state || org.state) params.set('cust_state', t.customer_state || t.state || org.state);
+        if (t.customer_phone || org.phone) params.set('cust_phone', t.customer_phone || org.phone);
+
+        // Equipment (current schema uses equipment_make / equipment_model on tickets)
+        if (t.equipment_make) params.set('equip_make', t.equipment_make);
+        if (t.equipment_model) params.set('equip_model', t.equipment_model);
+        if (t.serial_number) params.set('serial', t.serial_number);
+
+        // Ticket reference (pre-fills ticketNum and provides context)
+        if (t.ticket_number) params.set('ticket_num', t.ticket_number);
+
+        // Optional: service type hint
+        if (t.service_type) params.set('svc_type', t.service_type);
+
+        // Use the page helper so _s session token is appended for seamless auth on the target page
+        const qs = params.toString();
+        navigateTo('service_report.html?' + qs);
+    }
+
+    /* ===================== FULL PAGE TICKET DETAIL (not a popup) ===================== */
+    async function openFullTicketPage(t) {
+        if (!t) return;
+        selectedTicket = t;
+
+        // Logical status for display: once a ticket has a service date (i.e. is on the calendar),
+        // it should be "Scheduled" even if the DB still says "Awaiting Scheduling".
+        let displayStatus = t.status || '—';
+        if (t.service_date && t.status === 'Awaiting Scheduling') {
+            displayStatus = 'Scheduled';
+        }
+
+        // Ensure customer orgs loaded for address enrichment (in case not loaded before opening detail)
+        if (!Array.isArray(ticketCustomers) || ticketCustomers.length === 0) {
+            await loadTicketCustomers();
+        }
+
+        // Ensure engineers are loaded for name resolution (in case page was opened before init completed)
+        if (!Array.isArray(engineers) || engineers.length === 0) {
+            await loadEngineers();
+        }
+
+        // On-demand address enrichment for this specific ticket (belt-and-suspenders for existing data)
+        // This helps if global enrichment didn't catch the name match or ticketCustomers wasn't ready.
+        if (Array.isArray(ticketCustomers) && ticketCustomers.length > 0 && t.customer_name) {
+            const key = t.customer_name.toLowerCase().trim();
+            const match = ticketCustomers.find(c => c.name && c.name.toLowerCase().trim() === key);
+            if (match) {
+                t._customerOrg = match;
+                t.customer_address = t.customer_address || match.address || null;
+                t.customer_city = t.customer_city || match.city || null;
+                t.customer_state = t.customer_state || match.state || null;
+                t.customer_phone = t.customer_phone || match.phone || null;
+                t.customer_email = t.customer_email || match.email || null;
+                if (!t.address && match.address) t.address = match.address;
+                if (!t.city && match.city) t.city = match.city;
+                if (!t.state && match.state) t.state = match.state;
+            }
+        }
+
+        // As a last resort, if still no address anywhere, scan the raw ticket object for any address-like keys (helps legacy data)
+        if ((!t.address && !t.customer_address && !t._customerOrg) && typeof t === 'object') {
+            for (const k of Object.keys(t)) {
+                const kl = k.toLowerCase();
+                if (kl.includes('address') && t[k] && !t.customer_address) t.customer_address = t[k];
+                if ((kl === 'city' || kl.includes('city')) && t[k] && !t.customer_city) t.customer_city = t[k];
+                if ((kl === 'state' || kl.includes('state')) && t[k] && !t.customer_state) t.customer_state = t[k];
+            }
+        }
+
+        // Hide calendar UI for true full-page ticket experience
+        const tabs = document.getElementById('scheduleViewTabs');
+        const calNav = document.querySelector('.cal-nav');
+        const calBody = document.getElementById('calBody');
+        if (tabs) tabs.style.display = 'none';
+        if (calNav) calNav.style.display = 'none';
+        if (calBody) calBody.style.display = 'none';
+
+        const page = document.getElementById('ticketFullPage');
+        if (!page) return;
+
+        // Header
+        const headerEl = document.getElementById('ticketFullHeader');
+        if (headerEl) {
+            headerEl.innerHTML = `${t.ticket_number || 'Ticket'} <span style="color:var(--text-muted);font-size:11px;">${displayStatus}</span>`;
+        }
+
+        // Resolve assigned engineer name if engineers list is available
+        let assignedName = 'Unassigned';
+        if (t.assigned_to) {
+            if (typeof engineers !== 'undefined' && Array.isArray(engineers)) {
+                const eng = engineers.find(e => e.id === t.assigned_to);
+                if (eng) assignedName = [eng.first_name, eng.last_name].filter(Boolean).join(' ') || t.assigned_to;
+            } else {
+                assignedName = t.assigned_to;
+            }
+        }
+
+        const make = t.equipment_make || '';
+        const model = t.equipment_model || '';
+        const serial = t.serial_number || '';
+        const equipLine = [make, model].filter(Boolean).join(' / ') || '—';
+        const serialHtml = serial ? `<span class="ticket-serial">SN: ${serial}</span>` : '—';
+
+        // Build the best possible full address from direct ticket fields, denormalized customer_* fields,
+        // or the attached _customerOrg (from enrichment or legacy joins).
+        const org = t._customerOrg || {};
+        const addrParts = [
+            t.address || t.customer_address || org.address,
+            t.city || t.customer_city || org.city,
+            t.state || t.customer_state || org.state,
+            t.zip || org.zip
+        ].filter(Boolean);
+        const addr = addrParts.length ? addrParts.join(', ') : '—';
+
+        const phone = t.customer_phone || t.phone || org.phone || '—';
+        const email = t.customer_email || t.email || org.email || '—';
+        const cust = t.customer_name || '—';
+        const desc = t.description || t.notes || t.problem || 'No description provided.';
+        const svc = t.service_type || '—';
+        const when = t.service_date
+            ? (t.service_date + (t.scheduled_time ? ' @ ' + t.scheduled_time.slice(0,5) : '') + (t.end_time ? ' – ' + t.end_time.slice(0,5) : ''))
+            : 'Unscheduled';
+
+        const contentEl = document.getElementById('ticketFullContent');
+        if (contentEl) {
+            contentEl.innerHTML = `
+                <div class="ticket-section">
+                    <div class="ticket-section-hdr">Ticket Information</div>
+                    <div class="ticket-section-body">
+                        <div class="ticket-field"><div class="ticket-label">Ticket #</div><div class="ticket-value"><strong>${t.ticket_number || '—'}</strong></div></div>
+                        <div class="ticket-field"><div class="ticket-label">Status</div><div class="ticket-value">${displayStatus}</div></div>
+                        <div class="ticket-field"><div class="ticket-label">Priority</div><div class="ticket-value">${t.priority || 'Medium'}</div></div>
+                        <div class="ticket-field"><div class="ticket-label">When</div><div class="ticket-value">${when}</div></div>
+                        <div class="ticket-field"><div class="ticket-label">Service Type</div><div class="ticket-value">${svc}</div></div>
+                        <div class="ticket-field"><div class="ticket-label">Org ID (debug)</div><div class="ticket-value">${t.organization_id ?? 'null'} — must match your profile's organization_id for UPDATEs</div></div>
+                    </div>
+                </div>
+
+                <div class="ticket-section">
+                    <div class="ticket-section-hdr">Customer</div>
+                    <div class="ticket-section-body">
+                        <div class="ticket-field"><div class="ticket-label">Name</div><div class="ticket-value"><strong>${cust}</strong></div></div>
+                        <div class="ticket-field">
+                            <div class="ticket-label">Address</div>
+                            <div class="ticket-value">${addr !== '—' ? addr.replace(/, /g, '<br>') : '—'}</div>
+                        </div>
+                        <div class="ticket-field"><div class="ticket-label">Phone</div><div class="ticket-value">${phone}</div></div>
+                        <div class="ticket-field"><div class="ticket-label">Email</div><div class="ticket-value">${email}</div></div>
+                    </div>
+                </div>
+
+                <div class="ticket-section">
+                    <div class="ticket-section-hdr">Equipment</div>
+                    <div class="ticket-section-body">
+                        <div class="ticket-field"><div class="ticket-label">Make / Model</div><div class="ticket-value">${equipLine}</div></div>
+                        <div class="ticket-field"><div class="ticket-label">Serial Number</div><div class="ticket-value">${serialHtml}</div></div>
+                    </div>
+                </div>
+
+                <div class="ticket-section">
+                    <div class="ticket-section-hdr">Assignment</div>
+                    <div class="ticket-section-body">
+                        <div class="ticket-field"><div class="ticket-label">Assigned To</div><div class="ticket-value">${assignedName}</div></div>
+                    </div>
+                </div>
+
+                <div class="ticket-section">
+                    <div class="ticket-section-hdr">Description / Problem</div>
+                    <div class="ticket-section-body" style="white-space:pre-wrap; background:var(--surface); padding:10px; border-radius:6px; border:1px solid var(--border);">
+                        ${desc}
+                    </div>
+                </div>
+            `;
+        }
+
+        page.style.display = 'block';
+    }
+
+    function closeFullTicketPage() {
+        const page = document.getElementById('ticketFullPage');
+        if (page) page.style.display = 'none';
+
+        const tabs = document.getElementById('scheduleViewTabs');
+        const calNav = document.querySelector('.cal-nav');
+        const calBody = document.getElementById('calBody');
+        if (tabs) tabs.style.display = '';
+        if (calNav) calNav.style.display = '';
+        if (calBody) calBody.style.display = '';
+
+        if (typeof renderView === 'function') renderView();
+    }
+
+    function editCurrentTicket() {
+        if (!selectedTicket) return;
+        const t = selectedTicket;
+        closeFullTicketPage();
+        if (typeof openFullTicketEditor === 'function') {
+            openFullTicketEditor(t);
+        }
+    }
+
+    function deleteCurrentTicket() {
+        if (!selectedTicket) return;
+        if (!confirm(`Delete ticket ${selectedTicket.ticket_number || ''}? This cannot be undone.`)) return;
+        (async () => {
+            try {
+                await supabaseClient.from('service_tickets').delete().eq('id', selectedTicket.id);
+                if (typeof showToast === 'function') showToast('Ticket deleted', 'success');
+            } catch (e) {
+                console.warn('Delete ticket error', e);
+            }
+            closeFullTicketPage();
+            if (typeof loadTickets === 'function') {
+                if (!Array.isArray(ticketCustomers) || ticketCustomers.length === 0) {
+                    await loadTicketCustomers();
+                }
+                await loadTickets();
+                if (typeof renderView === 'function') renderView();
+            }
+        })();
+    }
+
+    // Auth state listener - ensures tickets load even if session arrives late from Android bridge
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+            currentUser = session.user;
+            // Re-load role/org in case it settled late (e.g. from Android restore)
+            (async () => {
+                try {
+                    const { data: profile } = await supabaseClient
+                        .from('user_profiles')
+                        .select('organization_id, role')
+                        .eq('id', session.user.id)
+                        .maybeSingle();
+                    const cand = profile?.organization_id;
+                    if (isValidOrgId(cand)) currentUserOrgId = cand;
+                    if (profile?.role) currentUserRole = profile.role;
+                    applyRoleBasedVisibility();
+                } catch(e) {}
+                await loadEngineers();
+                if (!Array.isArray(ticketCustomers) || ticketCustomers.length === 0) {
+                    await loadTicketCustomers();
+                }
+                await loadTickets();
+                if (typeof renderView === 'function') renderView();
+            })();
+        }
+        try {
+            if (typeof Android !== 'undefined') {
+                if (session?.access_token) Android.saveSession(JSON.stringify(session));
+                else if (event === 'SIGNED_OUT' && !session) Android.clearSession();
+            }
+        } catch(e) {}
+    });
+
+    // Final boot
+    init();
+</script>
+
+<script src="org-switcher.js"></script>
+<!-- Web compatibility / browser testing layer (safe no-op in WebView) -->
+<script src="web-compat.js"></script>
+
+</body>
+</html>

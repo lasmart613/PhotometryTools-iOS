@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// Hosts the bundled Total Service Pro HTML shell.
-/// Real screens will replace `Resources/assets` from totalservicepro-web later.
+/// Hosts the bundled Total Service Pro HTML shell (synced from totalservicepro-web).
 struct HomeView: View {
     var body: some View {
         NavigationStack {
@@ -15,4 +14,5 @@ struct HomeView: View {
 
 #Preview {
     HomeView()
+        .environmentObject(AuthService.shared)
 }

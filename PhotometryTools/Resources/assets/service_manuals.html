@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Manuals · TSP</title>
+    <script src="theme.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="tsp.css">
+    <style>
+        .manual-list { padding: 16px; }
+        .manual-item {
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .manual-item:hover { background: var(--surface3); border-color: var(--gold); }
+        .manual-item:active { transform: scale(0.98); }
+        .manual-icon { font-size: 28px; }
+        .manual-info { flex: 1; }
+        .manual-brand { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+        .manual-title { font-size: 15px; font-weight: 700; color: var(--text); margin-top: 2px; }
+        .dev-badge {
+            position: absolute; top: 60px; right: 16px;
+            background: #FBBF24; color: #111; font-size: 10px;
+            padding: 2px 8px; border-radius: 10px; font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <button class="header-back" onclick="goBack()">‹</button>
+    <div class="header-title">📚 Service Manuals</div>
+    <div style="width:40px;"></div>
+</div>
+
+<div class="main-content" id="mainContent">
+    <div class="empty-state"><div class="spinner"></div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="service-company-gate.js"></script>
+<script>
+    const supabaseClient = supabase.createClient(
+        'https://yljztfajyvjzqikxdddf.supabase.co',
+        ((window.TSP_CONFIG && window.TSP_CONFIG.supabaseAnonKey) || '')
+    );
+
+    let manualsData = [];
+
+    /** Bare "VBeam" is the operator PDF; "VBeam Perfecta" stays a service title. */
+    function isBareVbeamOperatorTitle(title) {
+        const stripped = String(title || '').replace(/^\s*(syneron(?:\s*candela)?|candela)\b[\s\-:\/]*/i, '').trim();
+        return /^v[\s_-]*beam$/i.test(stripped) && !/\b(perfecta|platinum|aesthetica|classic|pro|[0-9]+)\b/i.test(stripped);
+    }
+    function isManualIncomplete(manual) {
+        const v = manual && (manual.is_incomplete != null ? manual.is_incomplete : manual.isIncomplete);
+        return v === true || v === 1 || v === '1' || v === 'true' || v === 't';
+    }
+    function isOperatorManual(manual) {
+        const raw = String(manual && manual.title || '').trim();
+        if (/\b(service|technical|repair)\s+manuals?\b/i.test(raw)) return false;
+        if (/operator'?s?\s+manual|\buser\s+manual\b/i.test(raw)) return true;
+        return isBareVbeamOperatorTitle(raw);
+    }
+    function catalogTitle(manual) {
+        const raw = String(manual && manual.title || '').trim();
+        if (!raw) return 'Manual';
+        if (/\b(service|technical|repair)\s+manuals?\b/i.test(raw)) return raw;
+        if (/operator'?s?\s+manual|\buser\s+manual\b/i.test(raw)) return raw;
+        if (isBareVbeamOperatorTitle(raw)) return raw + " Operator's Manual";
+        return raw;
+    }
+
+    async function loadManuals() {
+        const container = document.getElementById('mainContent');
+        const { data: { user } } = await supabaseClient.auth.getUser();
+
+        if (!user) {
+            container.innerHTML = `<div class="empty-state"><h3>Please log in</h3><p>Service manuals are for service companies.</p></div>`;
+            return;
+        }
+        const access = await tspLoadServiceAccess(supabaseClient, user);
+        if (!access.allowed) {
+            container.innerHTML = `<div class="empty-state"><h3>Service Company only</h3><p>Service manuals are for service companies.</p></div>`;
+            return;
+        }
+
+        let { data: userManuals } = await supabaseClient
+            .from('user_manuals')
+            .select(`manual_id, manuals (id, brand, title, file_path)`)
+            .eq('user_id', user.id);
+
+        let manuals = [];
+
+        if (userManuals && userManuals.length > 0) {
+            manuals = userManuals.map(row => row.manuals);
+        } else {
+            const { data: allManuals } = await supabaseClient
+                .from('manuals')
+                .select('*')
+                .order('brand')
+                .order('title');
+            manuals = allManuals || [];
+        }
+
+        if (manuals.length === 0) {
+            container.innerHTML = `<div class="empty-state"><h3>No manuals found</h3></div>`;
+            return;
+        }
+
+        manualsData = manuals;
+
+        let html = `<div class="manual-list">`;
+        manuals.forEach((manual, index) => {
+            html += `
+                <div class="manual-item" onclick="openManual(${index})">
+                    <div class="manual-icon">📕</div>
+                    <div class="manual-info">
+                        <div class="manual-brand">${manual.brand}${isOperatorManual(manual) ? ' · OP' : ''}${isManualIncomplete(manual) ? ' · Incomplete' : ''}</div>
+                        <div class="manual-title">${catalogTitle(manual)}</div>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+
+        container.innerHTML = html;
+    }
+
+    async function openManual(index) {
+        const manual = manualsData[index];
+        const container = document.getElementById('mainContent');
+
+        container.innerHTML = `
+            <div style="padding:40px 20px; text-align:center;">
+                <div class="spinner" style="margin:0 auto 16px;"></div>
+                <div style="font-size:15px; font-weight:600;">Opening ${manual.title}...</div>
+            </div>
+        `;
+
+        try {
+            let filePath = manual.file_path || manual.storage_path || '';
+            if (filePath && !filePath.startsWith('shared/') && !filePath.startsWith('http')) {
+                filePath = `shared/${filePath}`;
+            }
+            const qs = new URLSearchParams();
+            if (manual.id != null) qs.set('manual_id', String(manual.id));
+            if (filePath) qs.set('storage_path', filePath);
+            qs.set('title', catalogTitle(manual));
+            window.location.href = 'pdf_viewer.html?' + qs.toString();
+            return;
+        } catch (err) {
+            console.error(err);
+            alert('Failed to open manual: ' + err.message);
+            loadManuals();
+        }
+    }
+
+    function goBack() {
+        // Prefer the nice bookshelf view in Manual Library
+        window.location.href = 'manual_library.html';
+    }
+
+    window.onload = loadManuals;
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+TSP iOS web-asset sync
+source: https://github.com/lasmart613/totalservicepro-web
+ref: main
+asset root: app/src/main/assets
+date: 2026-09-12T00:13:49Z
+commit: 02f75f2fd6ad088c7b257ade9938d2921e36d137
+
+copied:
+  - index.html (59643 bytes)
+  - service_hub.html (17030 bytes)
+  - service_schedule.html (133224 bytes)
+  - reports_list.html (22360 bytes)
+  - service_report.html (131485 bytes)
+  - coming_soon.html (3149 bytes)
+  - manual_library.html (21621 bytes)
+  - service_manuals.html (6949 bytes)
+  - onboarding.html (23647 bytes)
+  - customer_directory.html (21524 bytes)
+  - customer_profile.html (36716 bytes)
+  - calculators_menu.html (8669 bytes)
+  - settings.html (44155 bytes)
+  - density_calculator.html (24818 bytes)
+  - wavelength.html (19239 bytes)
+  - duty_cycle.html (11323 bytes)
+  - avgpower.html (15878 bytes)
+  - tsp.css (12076 bytes)
+  - theme.js (3343 bytes)
+  - web-compat.js (10795 bytes)
+  - org-switcher.js (6228 bytes)
+  - app-version.js (155 bytes)
+  - service-company-gate.js (2590 bytes)
+
+skipped: pdfjs/, manuals/, paywall.html, marketplace.html,
+ai_assistant.html, estimates/invoices, old.service_schedule.html
+
+Hardcoded Supabase anon JWTs were stripped and replaced with
+window.TSP_CONFIG.supabaseAnonKey (injected by TSPWebView).

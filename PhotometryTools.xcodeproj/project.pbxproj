@@ -15,10 +15,17 @@
 		A00000000000000000000035 /* CalculatorStubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000015 /* CalculatorStubView.swift */; };
 		A00000000000000000000036 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000016 /* SettingsView.swift */; };
 		A00000000000000000000037 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000017 /* AppConfig.swift */; };
-		A00000000000000000000038 /* SupabaseClientStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000018 /* SupabaseClientStub.swift */; };
+		A00000000000000000000038 /* TSPSupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000018 /* TSPSupabaseClient.swift */; };
 		A00000000000000000000039 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000019 /* Assets.xcassets */; };
 		A0000000000000000000003A /* assets in Resources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001A /* assets */; };
 		A0000000000000000000003B /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000020 /* WebKit.framework */; };
+		A00000000000000000000060 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000050 /* AuthService.swift */; };
+		A00000000000000000000061 /* SessionKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000051 /* SessionKeychain.swift */; };
+		A00000000000000000000062 /* TSPSessionJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000052 /* TSPSessionJSON.swift */; };
+		A00000000000000000000063 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000053 /* LoginView.swift */; };
+		A00000000000000000000064 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000054 /* RootView.swift */; };
+		A00000000000000000000065 /* BiometricSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000055 /* BiometricSettings.swift */; };
+		A00000000000000000000072 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000071 /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,7 +38,13 @@
 		A00000000000000000000015 /* CalculatorStubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorStubView.swift; sourceTree = "<group>"; };
 		A00000000000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A00000000000000000000017 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
-		A00000000000000000000018 /* SupabaseClientStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClientStub.swift; sourceTree = "<group>"; };
+		A00000000000000000000018 /* TSPSupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TSPSupabaseClient.swift; sourceTree = "<group>"; };
+		A00000000000000000000050 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		A00000000000000000000051 /* SessionKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionKeychain.swift; sourceTree = "<group>"; };
+		A00000000000000000000052 /* TSPSessionJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TSPSessionJSON.swift; sourceTree = "<group>"; };
+		A00000000000000000000053 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		A00000000000000000000054 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		A00000000000000000000055 /* BiometricSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricSettings.swift; sourceTree = "<group>"; };
 		A00000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A0000000000000000000001A /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = "<group>"; };
 		A0000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -48,6 +61,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A0000000000000000000003B /* WebKit.framework in Frameworks */,
+				A00000000000000000000072 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +92,7 @@
 				A00000000000000000000010 /* PhotometryToolsApp.swift */,
 				A00000000000000000000011 /* ContentView.swift */,
 				A0000000000000000000000A /* Views */,
+				A00000000000000000000021 /* Auth */,
 				A0000000000000000000000B /* Config */,
 				A0000000000000000000000C /* Supabase */,
 				A0000000000000000000000D /* Resources */,
@@ -90,8 +105,10 @@
 		A0000000000000000000000A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A00000000000000000000054 /* RootView.swift */,
 				A00000000000000000000012 /* HomeView.swift */,
 				A00000000000000000000013 /* TSPWebView.swift */,
+				A00000000000000000000053 /* LoginView.swift */,
 				A00000000000000000000014 /* CalculatorsView.swift */,
 				A00000000000000000000015 /* CalculatorStubView.swift */,
 				A00000000000000000000016 /* SettingsView.swift */,
@@ -110,9 +127,20 @@
 		A0000000000000000000000C /* Supabase */ = {
 			isa = PBXGroup;
 			children = (
-				A00000000000000000000018 /* SupabaseClientStub.swift */,
+				A00000000000000000000018 /* TSPSupabaseClient.swift */,
 			);
 			path = Supabase;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000021 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000050 /* AuthService.swift */,
+				A00000000000000000000051 /* SessionKeychain.swift */,
+				A00000000000000000000052 /* TSPSessionJSON.swift */,
+				A00000000000000000000055 /* BiometricSettings.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 		A0000000000000000000000D /* Resources */ = {
@@ -158,6 +186,9 @@
 			dependencies = (
 			);
 			name = PhotometryTools;
+			packageProductDependencies = (
+				A00000000000000000000071 /* Supabase */,
+			);
 			productName = PhotometryTools;
 			productReference = A00000000000000000000003 /* PhotometryTools.app */;
 			productType = "com.apple.product-type.application";
@@ -187,6 +218,9 @@
 				Base,
 			);
 			mainGroup = A00000000000000000000007 /* PhotometryTools */;
+			packageReferences = (
+				A00000000000000000000070 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			productRefGroup = A00000000000000000000008 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -221,7 +255,13 @@
 				A00000000000000000000035 /* CalculatorStubView.swift in Sources */,
 				A00000000000000000000036 /* SettingsView.swift in Sources */,
 				A00000000000000000000037 /* AppConfig.swift in Sources */,
-				A00000000000000000000038 /* SupabaseClientStub.swift in Sources */,
+				A00000000000000000000038 /* TSPSupabaseClient.swift in Sources */,
+				A00000000000000000000060 /* AuthService.swift in Sources */,
+				A00000000000000000000061 /* SessionKeychain.swift in Sources */,
+				A00000000000000000000062 /* TSPSessionJSON.swift in Sources */,
+				A00000000000000000000063 /* LoginView.swift in Sources */,
+				A00000000000000000000064 /* RootView.swift in Sources */,
+				A00000000000000000000065 /* BiometricSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -441,6 +481,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A00000000000000000000070 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.55.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A00000000000000000000071 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000070 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A00000000000000000000001 /* Project object */;
 }

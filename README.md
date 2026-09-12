@@ -1,8 +1,8 @@
 # PhotometryTools (iOS)
 
-SwiftUI scaffold for the iOS port of **Total Service Pro / PhotometryTools**.
+SwiftUI + WKWebView shell for the iOS port of **Total Service Pro / PhotometryTools**.
 
-This repository is a native shell only. It is not feature-complete and does not include Apple signing credentials.
+This repository is a native shell plus bundled hybrid HTML. It is not feature-complete and does not include Apple signing credentials.
 
 | Platform | Identifier |
 |---|---|
@@ -11,55 +11,86 @@ This repository is a native shell only. It is not feature-complete and does not 
 
 Minimum: **iOS 17**, **Xcode 15+**.
 
-Related inventory (Android screens, Supabase contracts, P0/P1/P2): [Photometry_Tools#1](https://github.com/lasmart613/Photometry_Tools/pull/1).
+Related inventory (Android screens, Supabase contracts, P0/P1/P2): [Photometry_Tools docs/ios-port-inventory.md](https://github.com/lasmart613/Photometry_Tools/blob/main/docs/ios-port-inventory.md).
 
 ## Open in Xcode
 
 1. Clone this repo.
-2. Open `PhotometryTools.xcodeproj` (File → Open, or double-click in Finder).
-3. Select the **PhotometryTools** shared scheme and an iOS 17+ simulator or device.
-4. Run (⌘R). Signing: pick your team in the PhotometryTools target if you run on a device. No certificates or provisioning profiles are stored here.
+2. Copy secrets (see below) so the app can talk to Supabase.
+3. Open `PhotometryTools.xcodeproj` (File → Open, or double-click in Finder).
+4. Let Xcode resolve the **supabase-swift** package (`https://github.com/supabase/supabase-swift.git`, 2.55+).
+5. Select the **PhotometryTools** shared scheme and an iOS 17+ simulator or device.
+6. Run (⌘R). Signing: pick your team in the PhotometryTools target if you run on a device. No certificates or provisioning profiles are stored here.
 
-You should see a three-tab shell:
+Signed-out: native email/password login (magic link and password reset send email only).  
+Signed-in: three-tab shell.
 
-- **Home** — `WKWebView` loading bundled `PhotometryTools/Resources/assets/index.html` (“TSP shell — HTML assets sync from totalservicepro-web later”).
+- **Home** — `WKWebView` loading bundled `PhotometryTools/Resources/assets/index.html` (TSP dashboard from totalservicepro-web). Falls back to `placeholder.html` if the entry file is missing.
 - **Calculators** — native SwiftUI stub hub (Density, Wavelength, Duty Cycle, Average Power).
-- **Settings** — `CFBundleShortVersionString` and build number (`CFBundleVersion`).
+- **Settings** — version/build, sign out, biometric-unlock stub, Supabase config status.
 
-HTML/CSS/JS under `PhotometryTools/Resources/assets/` is a placeholder. Sync real screens from [totalservicepro-web](https://github.com/lasmart613/totalservicepro-web) / the Android assets in a later pass.
-
-## Supabase config (no secrets in git)
+## Secrets setup (no keys in git)
 
 Project ref: **`yljztfajyvjzqikxdddf`**  
 URL: `https://yljztfajyvjzqikxdddf.supabase.co`
 
-The app includes **supabase-swift client stubs** only (`PhotometryTools/Supabase/SupabaseClientStub.swift`). It does not ship an anon key.
+The official [supabase-swift](https://github.com/supabase/supabase-swift) client is constructed as:
+
+`SupabaseClient(supabaseURL: AppConfig.supabaseURL, supabaseKey: key)`
+
+with `KeychainLocalStorage` (not UserDefaults). The Android-compatible session JSON is stored in the Keychain under service `com.photometrytools.ios.session`.
 
 1. Copy `Secrets.xcconfig.example` → `Secrets.xcconfig` **or** `Config.example.plist` → `Config.plist`.
-2. Replace `YOUR_SUPABASE_ANON_KEY` with the project anon key from the Supabase dashboard.
+2. Replace `YOUR_SUPABASE_ANON_KEY` with the project **anon** (publishable) key from the Supabase dashboard. Never commit a service-role key.
 3. If you use `Config.plist`, add it to the PhotometryTools target’s Copy Bundle Resources (do not commit it).
 4. `Debug.xcconfig` / `Release.xcconfig` already `#include? "Secrets.xcconfig"` so a missing secrets file does not break a clean clone.
 
 `Secrets.xcconfig`, `Config.plist`, and signing files are gitignored. **Never commit real anon keys or secrets.**
 
-When you add the official package ([supabase-swift](https://github.com/supabase/supabase-swift)), construct:
+Without a local key the login screen explains setup and will not call Supabase.
 
-`SupabaseClient(supabaseURL: AppConfig.supabaseURL, supabaseKey: key)`
+## HTML asset sync
 
-## P0 parity (not implemented in this scaffold)
+Android hybrid UI lives in [totalservicepro-web](https://github.com/lasmart613/totalservicepro-web) at `app/src/main/assets/` (same tree Photometry_Tools bundles). The Next.js app under `web/` is **not** a WKWebView target.
 
-Ship a usable field app against the same Supabase project. Full list and contracts: [inventory PR](https://github.com/lasmart613/Photometry_Tools/pull/1).
+Refresh bundled P0 screens:
 
-1. WKWebView (or native) shell: JS bridge, Keychain session, `restoreSession` / `?_s=` equivalent, back + exit confirm.
-2. Supabase auth: password, magic link, reset, logout, onboarding gate.
-3. Home dashboard + role-aware chrome.
-4. Service schedule (CRUD tickets, RPC ticket numbers, notifications list).
-5. Service reports list + model-specific form + PDF/share.
-6. Customer directory + customer profile (use Android `main`, not the empty snapshot file).
-7. Manual library + signed-URL PDF viewer (PDFKit or PDF.js).
-8. Photometry calculators (density + wavelength + duty cycle + avg power).
-9. Settings About version/build from the Xcode target (this scaffold does #9 only).
-10. ATS / HTTPS to Supabase only.
+```bash
+Scripts/sync-web-assets.sh
+# or, if you already cloned the web repo:
+Scripts/sync-web-assets.sh /path/to/totalservicepro-web
+```
+
+The script:
+
+- Copies home/dashboard, schedule, reports, manuals placeholders, customer directory/profile, calculators, settings, and shared CSS/JS (`tsp.css`, `theme.js`, `web-compat.js`, `org-switcher.js`, `app-version.js`, `service-company-gate.js`).
+- Skips `pdfjs/`, bundled PDFs, paywall, marketplace, AI, estimates/invoices, and `old.service_schedule.html`.
+- Strips hardcoded Supabase anon JWTs and replaces them with `window.TSP_CONFIG.supabaseAnonKey` (injected by `TSPWebView`).
+- Writes `Scripts/asset-sync-manifest.txt`.
+- Leaves `placeholder.html` as a safe fallback.
+
+Re-run the script when totalservicepro-web HTML changes. Do not invent pages.
+
+## Session injection into WKWebView
+
+Confirmed against Photometry_Tools `MainActivity` (main + inventory):
+
+1. Native store is Keychain (Android: `SharedPreferences` `TSPPrefs` / `storedSession`).
+2. On each page, write `localStorage['tsp-auth-token']` and call `restoreSession(...)`.
+3. In-page navigation uses `?_s=` = base64(JSON of `access_token` + `refresh_token`).
+4. JS bridge is named `Android` (`saveSession`, `clearSession`, `getStoredSession`, biometric stubs) so existing HTML keeps working.
+
+`WKWebView` injects `TSP_CONFIG` + the `Android` shim at document start, then calls `restoreSession` on `didFinish`.
+
+## P0 parity (this slice)
+
+1. WKWebView shell: JS bridge, Keychain session, `restoreSession` / `?_s=` equivalent.
+2. Supabase auth: password, magic-link send, reset-email send, logout.
+3. Home dashboard HTML (signed-in only).
+4. Settings About version/build + sign out.
+5. ATS / HTTPS to Supabase (plus the CDN hosts the HTML already uses).
+
+Still later: schedule/report CRUD polish, PDF viewer, native calculators, onboarding gate, StoreKit, full LocalAuthentication prompt.
 
 ## Out of scope
 
@@ -72,15 +103,17 @@ Ship a usable field app against the same Supabase project. Full list and contrac
 ## Project layout
 
 ```
-PhotometryTools.xcodeproj/     Xcode project + shared scheme
+PhotometryTools.xcodeproj/     Xcode project + shared scheme + supabase-swift SPM
 PhotometryTools/
   PhotometryToolsApp.swift     SwiftUI @main
   ContentView.swift            Home / Calculators / Settings tabs
-  Views/                       Home WKWebView, calculator hub, Settings
+  Views/                       Login, root gate, Home WKWebView, calculators, Settings
+  Auth/                        Keychain session, supabase-swift sign-in/out
   Config/AppConfig.swift       Reads example-backed plist / xcconfig keys
-  Supabase/                    supabase-swift client stub
-  Resources/assets/            Placeholder HTML/CSS/JS
+  Supabase/                    SupabaseClient factory (KeychainLocalStorage)
+  Resources/assets/            Synced TSP HTML/CSS/JS + placeholder fallback
   Info.plist                   Merged keys (SUPABASE_* from xcconfig)
+Scripts/sync-web-assets.sh     Refresh assets from totalservicepro-web
 Config.example.plist
 Secrets.xcconfig.example
 ```
