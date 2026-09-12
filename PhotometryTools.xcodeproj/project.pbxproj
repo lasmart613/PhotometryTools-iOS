@@ -31,6 +31,9 @@
 		A00000000000000000000063 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000053 /* LoginView.swift */; };
 		A00000000000000000000064 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000054 /* RootView.swift */; };
 		A00000000000000000000065 /* BiometricSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000055 /* BiometricSettings.swift */; };
+		A00000000000000000000066 /* BiometricUnlockController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000056 /* BiometricUnlockController.swift */; };
+		A00000000000000000000067 /* BiometricLockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000057 /* BiometricLockView.swift */; };
+		A00000000000000000000098 /* LocalAuthentication.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000088 /* LocalAuthentication.framework */; };
 		A00000000000000000000072 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000071 /* Supabase */; };
 		A00000000000000000000090 /* ManualURLClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000080 /* ManualURLClient.swift */; };
 		A00000000000000000000091 /* PDFFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000081 /* PDFFileStore.swift */; };
@@ -64,6 +67,9 @@
 		A00000000000000000000053 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		A00000000000000000000054 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		A00000000000000000000055 /* BiometricSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricSettings.swift; sourceTree = "<group>"; };
+		A00000000000000000000056 /* BiometricUnlockController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricUnlockController.swift; sourceTree = "<group>"; };
+		A00000000000000000000057 /* BiometricLockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricLockView.swift; sourceTree = "<group>"; };
+		A00000000000000000000088 /* LocalAuthentication.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LocalAuthentication.framework; path = System/Library/Frameworks/LocalAuthentication.framework; sourceTree = SDKROOT; };
 		A00000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A0000000000000000000001A /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = "<group>"; };
 		A0000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -88,6 +94,7 @@
 			files = (
 				A0000000000000000000003B /* WebKit.framework in Frameworks */,
 				A00000000000000000000096 /* PDFKit.framework in Frameworks */,
+				A00000000000000000000098 /* LocalAuthentication.framework in Frameworks */,
 				A00000000000000000000072 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -144,6 +151,7 @@
 				A000000000000000000000A4 /* WavelengthCalculatorView.swift */,
 				A000000000000000000000A5 /* DutyCycleCalculatorView.swift */,
 				A000000000000000000000A6 /* AveragePowerCalculatorView.swift */,
+				A00000000000000000000057 /* BiometricLockView.swift */,
 				A00000000000000000000016 /* SettingsView.swift */,
 			);
 			path = Views;
@@ -172,6 +180,7 @@
 				A00000000000000000000051 /* SessionKeychain.swift */,
 				A00000000000000000000052 /* TSPSessionJSON.swift */,
 				A00000000000000000000055 /* BiometricSettings.swift */,
+				A00000000000000000000056 /* BiometricUnlockController.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -222,6 +231,7 @@
 			children = (
 				A00000000000000000000020 /* WebKit.framework */,
 				A00000000000000000000086 /* PDFKit.framework */,
+				A00000000000000000000088 /* LocalAuthentication.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -324,6 +334,8 @@
 				A00000000000000000000063 /* LoginView.swift in Sources */,
 				A00000000000000000000064 /* RootView.swift in Sources */,
 				A00000000000000000000065 /* BiometricSettings.swift in Sources */,
+				A00000000000000000000066 /* BiometricUnlockController.swift in Sources */,
+				A00000000000000000000067 /* BiometricLockView.swift in Sources */,
 				A00000000000000000000090 /* ManualURLClient.swift in Sources */,
 				A00000000000000000000091 /* PDFFileStore.swift in Sources */,
 				A00000000000000000000092 /* PDFViewerController.swift in Sources */,

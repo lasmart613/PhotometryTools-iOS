@@ -9,6 +9,6 @@
 	<key>SUPABASE_PROJECT_REF</key>
 	<string>yljztfajyvjzqikxdddf</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Unlock your Total Service Pro session. Biometric unlock is a stub in this build.</string>
+	<string>Unlock your Total Service Pro session with Face ID. This is optional and only used when you turn on biometric unlock in Settings.</string>
 </dict>
 </plist>

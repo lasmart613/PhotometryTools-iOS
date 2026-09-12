@@ -31,6 +31,28 @@ enum TSPSessionJSON {
         return Tokens(accessToken: access, refreshToken: refresh, expiresAt: expires)
     }
 
+    static func email(from json: String) -> String? {
+        guard let data = json.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let session: [String: Any]
+        if let wrapped = root["currentSession"] as? [String: Any] {
+            session = wrapped
+        } else {
+            session = root
+        }
+        if let email = session["email"] as? String, !email.isEmpty {
+            return email
+        }
+        if let user = session["user"] as? [String: Any],
+           let email = user["email"] as? String,
+           !email.isEmpty {
+            return email
+        }
+        return nil
+    }
+
     /// localStorage `tsp-auth-token` value (wrapped format used by restoreSession).
     static func localStorageValue(from json: String) -> String {
         guard let tokens = tokens(from: json),
