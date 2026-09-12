@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @EnvironmentObject private var auth: AuthService
+    @State private var biometricEnabled = BiometricSettings.isEnabled
+
     private var shortVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
     }
@@ -23,6 +26,25 @@ struct SettingsView: View {
                     LabeledContent("Brand", value: "Total Service Pro")
                 }
 
+                Section("Account") {
+                    LabeledContent("Signed in", value: auth.userEmail ?? (auth.isSignedIn ? "Session in Keychain" : "No"))
+                    Button("Sign Out", role: .destructive) {
+                        Task { await auth.signOut() }
+                    }
+                }
+
+                Section {
+                    Toggle("Biometric unlock (stub)", isOn: $biometricEnabled)
+                        .onChange(of: biometricEnabled) { _, newValue in
+                            BiometricSettings.isEnabled = newValue
+                        }
+                    Text("Stores the preference and reports \(BiometricSettings.biometryName) availability (\(BiometricSettings.canEvaluate ? "available" : "not available")). The LocalAuthentication prompt is P1.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Security")
+                }
+
                 Section("Identifiers") {
                     LabeledContent("iOS bundle ID", value: bundleIdentifier)
                     LabeledContent("Android application ID", value: "com.photometrytools")
@@ -40,7 +62,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Out of scope (this scaffold)") {
+                Section("Out of scope") {
                     Text("Peanut Beach Run, AdMob, StoreKit, signing credentials, and full feature parity are not included.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -53,4 +75,5 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+        .environmentObject(AuthService.shared)
 }

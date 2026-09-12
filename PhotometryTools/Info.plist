@@ -8,5 +8,7 @@
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_PROJECT_REF</key>
 	<string>yljztfajyvjzqikxdddf</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Unlock your Total Service Pro session. Biometric unlock is a stub in this build.</string>
 </dict>
 </plist>
