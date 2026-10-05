@@ -78,7 +78,10 @@
 </div>
 
 <div class="page">
-    <div style="margin-bottom:16px;"><div style="font-size:22px;font-weight:800;">Customer Directory</div><div id="pageSubtitle" style="font-size:13px;color:var(--text3);margin-top:3px;">Loading...</div></div>
+    <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div><div style="font-size:22px;font-weight:800;">Customer Directory</div><div id="pageSubtitle" style="font-size:13px;color:var(--text3);margin-top:3px;">Loading...</div></div>
+        <button class="btn btn-primary" type="button" data-tsp-card-scan="create" onclick="scanBusinessCard('create')" style="flex-shrink:0;">Scan card</button>
+    </div>
 
     <div class="stats-3">
         <div class="stat-card"><div class="stat-num" id="statTotal">—</div><div class="stat-label">Customers</div></div>
@@ -218,6 +221,22 @@
 
     function showSkeletons(show){['skel1','skel2','skel3'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=show?'block':'none';});}
     function formatLastService(d){if(!d)return null;const days=Math.floor((Date.now()-new Date(d))/86400000);if(days<30)return{label:`Serviced ${days}d ago`,cls:'recent'};if(days<90)return{label:`Serviced ${days}d ago`,cls:''};if(days<365)return{label:`Serviced ${Math.floor(days/30)}mo ago`,cls:'overdue'};return{label:`Serviced ${Math.floor(days/365)}yr ago`,cls:'overdue'};}
+
+    async function scanBusinessCard(mode) {
+        try {
+            if (typeof Android === 'undefined' || !Android.captureCardImage) {
+                showToast('Card scan is available in the iOS app.', 'error');
+                return;
+            }
+            var result = await Android.captureCardImage({ mode: mode || 'create' });
+            if (result && result.queued) showToast('Saved on this device. It will sync when you are online.', 'success');
+            else if (result && result.saved) { showToast('Customer saved.', 'success'); loadCustomers(); }
+        } catch (e) {
+            var message = (e && e.message) || '';
+            if (/cancel/i.test(message)) return;
+            showToast(message || 'Card scan failed', 'error');
+        }
+    }
 
     function openAddModal(){document.getElementById('addModal').classList.add('open');setTimeout(()=>document.getElementById('newName').focus(),100);}
     function closeAddModal(){document.getElementById('addModal').classList.remove('open');['newName','newPhone','newEmail','newAddress','newCity','newState','newWebsite'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}

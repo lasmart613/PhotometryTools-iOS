@@ -25,6 +25,10 @@ struct TSPWebView: UIViewRepresentable {
         let userContent = WKUserContentController()
         userContent.add(context.coordinator, name: "tsp")
         userContent.addUserScript(context.coordinator.bootstrapScript())
+        let cardScript = CardScanPageScript.source
+        if !cardScript.isEmpty {
+            userContent.addUserScript(WKUserScript(source: cardScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
 
         let preferences = WKWebpagePreferences()
         preferences.allowsContentJavaScript = true
@@ -43,6 +47,10 @@ struct TSPWebView: UIViewRepresentable {
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         context.coordinator.webView = webView
+        context.coordinator.observeURL(webView)
+        CardScanCenter.shared.reloadWebPage = { [weak webView] in
+            webView?.reload()
+        }
         context.coordinator.loadInitial(in: webView)
         return webView
     }
@@ -65,6 +73,20 @@ struct TSPWebView: UIViewRepresentable {
         let reachability = NetworkReachability()
         weak var webView: WKWebView?
         private var didOfferOfflineFallback = false
+        private var urlObservation: NSKeyValueObservation?
+
+        deinit {
+            urlObservation?.invalidate()
+        }
+
+        func observeURL(_ webView: WKWebView) {
+            urlObservation = webView.observe(\.url, options: [.new]) { _, change in
+                let url = change.newValue.flatMap { $0 }
+                Task { @MainActor in
+                    CardScanCenter.shared.note(url: url)
+                }
+            }
+        }
 
         init(
             auth: AuthService,
@@ -138,6 +160,7 @@ struct TSPWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            CardScanCenter.shared.note(url: webView.url)
             if let url = webView.url, LiveWebPolicy.shouldRemember(url) {
                 UserDefaults.standard.set(url.absoluteString, forKey: AppConfig.lastWebURLDefaultsKey)
             }
@@ -223,7 +246,7 @@ struct TSPWebView: UIViewRepresentable {
             type: WKMediaCaptureType,
             decisionHandler: @escaping (WKPermissionDecision) -> Void
         ) {
-            // Camera OCR is Phase 1.5. Deny capture so the site does not prompt.
+            // Card OCR uses the native camera. The page does not get getUserMedia.
             decisionHandler(.deny)
         }
 
@@ -352,8 +375,24 @@ struct TSPWebView: UIViewRepresentable {
                     bundleContains: Self.bundleContains
                 )
                 perform(decision, original: url, in: webView, fromNavigation: false, decisionHandler: nil)
+            case "cardPage":
+                let href = text.isEmpty ? (webView?.url?.absoluteString ?? "") : text
+                CardScanCenter.shared.note(url: URL(string: href))
+            case "cardButton":
+                CardScanCenter.shared.noteInPageButton(text == "1" || text == "true")
             case "captureCardImage", "openCamera":
-                reply(requestId: requestId, error: "Card capture is not available in this beta.")
+                let request = CardScanRequest.from(
+                    payload: spec,
+                    pageURL: webView?.url,
+                    notedPage: CardScanCenter.shared.page
+                )
+                let result = await CardScanFlow.start(request)
+                switch result {
+                case .success(let outcome):
+                    reply(requestId: requestId, value: outcome.bridgeValue)
+                case .failure(let error):
+                    reply(requestId: requestId, error: error.localizedDescription)
+                }
             case "goBack":
                 if webView?.canGoBack == true {
                     webView?.goBack()
@@ -543,8 +582,14 @@ struct TSPWebView: UIViewRepresentable {
                 canUseBiometric: function() { return !!window.__TSP_CAN_BIOMETRIC__; },
                 goBack: function() { post('goBack', ''); },
                 openUrl: function(url) { post('openUrl', url); },
-                captureCardImage: function() { return invoke('captureCardImage', {}); },
-                openCamera: function() { return invoke('openCamera', {}); },
+                captureCardImage: function(payload) {
+                  var spec = payload && typeof payload === 'object' ? payload : {};
+                  return invoke('captureCardImage', spec);
+                },
+                openCamera: function(payload) {
+                  var spec = payload && typeof payload === 'object' ? payload : {};
+                  return invoke('openCamera', spec);
+                },
                 showLoginPopup: function() { post('showLoginPopup', ''); },
                 getExitConfirmEnabled: function() { return true; },
                 setExitConfirmEnabled: function() {},

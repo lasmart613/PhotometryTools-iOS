@@ -10,5 +10,7 @@
 	<string>yljztfajyvjzqikxdddf</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock your Total Service Pro session with Face ID. This is optional and only used when you turn on biometric unlock in Settings.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Photometry Tools uses the camera to scan business cards and fill in customer contact information. Recognition runs on this device. Card photos are not uploaded for text recognition.</string>
 </dict>
 </plist>

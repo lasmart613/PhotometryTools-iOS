@@ -2,7 +2,7 @@
 
 SwiftUI + WKWebView shell for the iOS port of **Total Service Pro / PhotometryTools**.
 
-Version **0.5.0** (build **2**), shown in Settings as **0.5.0-beta**. TestFlight is still held. This repo does not include Apple signing credentials.
+Version **0.5.0** (build **3**), shown in Settings as **0.5.0-beta**. TestFlight is still held. This repo does not include Apple signing credentials.
 
 Signed-in **Home** loads the live site `https://repairplanet.net` (same idea as Android 1.4). Bundled HTML under `Resources/assets/` is the offline and calculator fallback, not the primary UI. Native Calculators, PDFKit manuals, and opt-in biometric unlock stay in the shell.
 
@@ -82,7 +82,7 @@ Confirmed against Photometry_Tools `MainActivity` (main + inventory):
 3. In-page navigation uses `?_s=` = base64(JSON of `access_token` + `refresh_token`).
 4. JS bridge is named `Android` (`saveSession`, `clearSession`, `getStoredSession`, `setBiometricEnabled` / `isBiometricEnabled` / `canUseBiometric`) so existing HTML Settings stay in sync with native.
 
-`WKWebView` injects `TSP_CONFIG` + the `Android` shim at document start, then calls `restoreSession` and `__tspRestoreAndroidSession` (the live site’s `AndroidSessionBridge`) on `didFinish`. A short retry also waits for that function to be installed by the page. `Android.openUrl` loads allowlisted repairplanet.net URLs in the web view and opens Stripe Checkout plus other external http(s) links in Safari. `Android.captureCardImage` / `openCamera` are stubs for a later card-OCR pass and do not open the camera.
+`WKWebView` injects `TSP_CONFIG` + the `Android` shim at document start, then calls `restoreSession` and `__tspRestoreAndroidSession` (the live site’s `AndroidSessionBridge`) on `didFinish`. A short retry also waits for that function to be installed by the page. `Android.openUrl` loads allowlisted repairplanet.net URLs in the web view and opens Stripe Checkout plus other external http(s) links in Safari. `Android.captureCardImage` / `openCamera` open the native camera, read the card with on-device Vision, and return only after the user confirms or cancels.
 
 ## Manuals and report PDFs
 
@@ -116,6 +116,7 @@ The injected `window.Android` shim keeps session methods and adds:
 | `openPdf(url \| path \| { url, base64, title })` | Download/open in PDFKit. `blob:` is read in JS and sent as base64 |
 | `sharePdf(...)` | Same sources, then the iOS share sheet |
 | `printReport(html, jobName)` | HTML → PDF → PDFKit (report export) |
+| `captureCardImage({ mode, organizationId })` / `openCamera` | Native camera → on-device Vision → confirm sheet. Resolves `{ saved, queued, organizationId, fields }` after an explicit Save. Rejects with `Cancelled` when the user backs out. Never auto-saves. |
 
 Session injection (`tsp-auth-token` / `restoreSession` / `?_s=`) is unchanged.
 
@@ -152,6 +153,28 @@ When the toggle is on and a Keychain session exists:
 
 `NSFaceIDUsageDescription` is set in `Info.plist`. HTML `Android.setBiometricEnabled` / `isBiometricEnabled` / `canUseBiometric` read and write the same native flag so Settings.html cannot disagree with the Settings tab.
 
+## Business card scan
+
+Signed-in Customers can add or update a customer from a business card. Recognition is **Apple Vision on the device** (`VNRecognizeTextRequest`). The photo is not uploaded, and no cloud or third-party OCR service is called.
+
+1. **Scan card** on the Customers directory (`/customers` or bundled `customer_directory.html`) starts a new customer.
+2. **Update from card** on a customer profile (`/customers/{id}` or bundled `customer_profile.html?id=`) fills that customer.
+3. The native sheet is prefilled with name, title, company, phone, email, address, city, state, ZIP, and website. The user can edit, retake, or cancel.
+4. **Save** is the only write. Cancel before Save does not create a draft and does not call Supabase.
+5. Save uses the Keychain session against the same `organizations`, `organization_customers`, and `contacts` rows as the live directory. Company is the customer name.
+6. Offline, or if the network save fails, the confirmed fields stay in an on-device draft queue and sync when a connection is available. The photo is not kept.
+
+The page buttons call `Android.captureCardImage`. A native **Scan card** / **Update from card** button is also shown on those screens when the page button is not in the DOM. This flow does not show ads.
+
+`NSCameraUsageDescription` is set in `Info.plist`.
+
+### App Privacy nutrition labels
+
+- **Camera** — photograph a business card so contact fields can be filled in.
+- **User Content** — if the save cannot reach the server, the confirmed contact fields are stored on the device until sync. The card photo is not stored.
+
+Check the parser with `Scripts/verify-card-parser.sh`.
+
 ## Soft beta (0.5.0)
 
 1. Live WKWebView shell: `https://repairplanet.net`, host allowlist, Keychain session inject.
@@ -162,8 +185,9 @@ When the toggle is on and a Keychain session exists:
 6. Native photometry calculators (Fluence, Density, Wavelength, Duty Cycle, Average Power).
 7. Opt-in LocalAuthentication unlock (Face ID / Touch ID). Cancel does not sign out.
 8. Manuals and report export still use PDFKit.
+9. On-device business-card scan (Vision) with confirm-before-save and an offline draft queue.
 
-TestFlight / Apple signing stay held. Still later: card OCR, APNs, StoreKit, AdMob.
+TestFlight / Apple signing stay held. Still later: APNs, StoreKit, AdMob.
 
 ## Out of scope
 
@@ -171,7 +195,6 @@ TestFlight / Apple signing stay held. Still later: card OCR, APNs, StoreKit, AdM
 - AdMob
 - StoreKit / Play Billing
 - Apple signing credentials and TestFlight
-- Native card OCR (camera bridge is a stub only)
 - Invented Stripe Connect partner URLs
 
 ## Project layout
@@ -183,6 +206,7 @@ PhotometryTools/
   ContentView.swift            Home / Calculators / Settings tabs
   Views/                       Login, root gate, live Home WKWebView, native calculators, Settings
   Web/LiveWebPolicy.swift      Host allowlist, Stripe → Safari, offline fallback rules
+  Cards/                       On-device Vision card OCR, confirm sheet, offline draft queue
   Calculators/                 Photometry math + VBeam wavelength table (HTML parity)
   Auth/                        Keychain session, supabase-swift sign-in/out, LocalAuthentication gate
   Config/AppConfig.swift       Reads example-backed plist / xcconfig keys
@@ -192,6 +216,7 @@ PhotometryTools/
   Info.plist                   Merged keys (SUPABASE_* from xcconfig, NSFaceIDUsageDescription)
 Scripts/sync-web-assets.sh     Refresh assets from totalservicepro-web
 Scripts/verify-calculator-parity.mjs   HTML vs native table/formula check
+Scripts/verify-card-parser.sh  Business-card field parser checks
 Scripts/secret-scan.sh         Fail if secrets landed in git
 Config.example.plist
 Secrets.xcconfig.example

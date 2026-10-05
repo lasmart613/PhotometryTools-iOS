@@ -19,6 +19,8 @@ struct PhotometryToolsApp: App {
                         isEnabled: biometric.isEnabled
                     )
                     await auth.bootstrap()
+                    CustomerCardDraftSync.shared.start()
+                    await CustomerCardDraftSync.shared.flush()
                     await unlock.promptIfNeeded(
                         isSignedIn: auth.isSignedIn,
                         isEnabled: biometric.isEnabled
@@ -32,6 +34,7 @@ struct PhotometryToolsApp: App {
                     )
                     if phase == .active {
                         Task {
+                            await CustomerCardDraftSync.shared.flush()
                             await unlock.promptIfNeeded(
                                 isSignedIn: auth.isSignedIn,
                                 isEnabled: biometric.isEnabled
@@ -42,6 +45,7 @@ struct PhotometryToolsApp: App {
                 .onChange(of: auth.isSignedIn) { wasSignedIn, isSignedIn in
                     if isSignedIn && !wasSignedIn {
                         unlock.handleSignedInTransition()
+                        Task { await CustomerCardDraftSync.shared.flush() }
                     } else if !isSignedIn {
                         unlock.resetAfterSignOut()
                     }
