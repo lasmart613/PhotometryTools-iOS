@@ -67,7 +67,7 @@ struct SettingsView: View {
                 }
 
                 Section("Out of scope") {
-                    Text("AdMob, StoreKit, Apple signing, TestFlight, and card OCR are not in this beta. Stripe Checkout opens in Safari. Connect partner links are not invented here.")
+                    Text("AdMob, StoreKit, Apple signing, and TestFlight are not in this beta. Business cards are read on device from Customers. Stripe Checkout opens in Safari. Connect partner links are not invented here.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
