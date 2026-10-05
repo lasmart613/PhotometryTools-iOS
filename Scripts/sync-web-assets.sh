@@ -21,7 +21,10 @@ WEB_REF="${WEB_REF:-main}"
 ASSET_SUBDIR="app/src/main/assets"
 FALLBACK_PLACEHOLDER="$DEST/placeholder.html"
 
-# P0 shell + shared CSS/JS auth helpers. Do not invent pages.
+# Offline / calculator fallback only. The signed-in Home tab loads
+# https://repairplanet.net (see TSPWebView). Do not treat this list as the
+# product surface — estimates, invoices, marketplace, AI, and profiles come
+# from the live site.
 # Skip pdfjs/, manuals PDFs, paywall, marketplace, AI, estimates/invoices,
 # old.service_schedule.html — those are P1 or oversized viewer chrome.
 # pdf_viewer.html is also skipped: iOS intercepts that URL and opens PDFKit

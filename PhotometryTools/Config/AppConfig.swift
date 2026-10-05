@@ -5,6 +5,19 @@ import Foundation
 enum AppConfig {
     static let supabaseProjectRef = "yljztfajyvjzqikxdddf"
 
+    /// Numeric marketing version lives in the Xcode target (`0.5.0`).
+    /// Settings shows this soft-beta label.
+    static let marketingLabel = "0.5.0-beta"
+
+    /// Same origin Android 1.4 loads. Bundled HTML is offline fallback only.
+    static let productionOrigin = URL(string: "https://repairplanet.net")!
+
+    /// `TSPAndroid/` keeps repairplanet.net on the in-app session bridge
+    /// (`isTspAndroidWebView`). `TSPiOS/` identifies this shell.
+    static let webViewUserAgentToken = "TSPAndroid/1.4 TSPiOS/0.5.0"
+
+    static let lastWebURLDefaultsKey = "tsp.lastWebURL"
+
     static let defaultSupabaseURL = URL(string: "https://yljztfajyvjzqikxdddf.supabase.co")!
 
     static var supabaseURL: URL {

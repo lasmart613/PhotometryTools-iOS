@@ -2,7 +2,9 @@
 
 SwiftUI + WKWebView shell for the iOS port of **Total Service Pro / PhotometryTools**.
 
-This repository is a native shell plus bundled hybrid HTML. It is not feature-complete and does not include Apple signing credentials.
+Version **0.5.0** (build **2**), shown in Settings as **0.5.0-beta**. TestFlight is still held. This repo does not include Apple signing credentials.
+
+Signed-in **Home** loads the live site `https://repairplanet.net` (same idea as Android 1.4). Bundled HTML under `Resources/assets/` is the offline and calculator fallback, not the primary UI. Native Calculators, PDFKit manuals, and opt-in biometric unlock stay in the shell.
 
 | Platform | Identifier |
 |---|---|
@@ -25,7 +27,7 @@ Related inventory (Android screens, Supabase contracts, P0/P1/P2): [Photometry_T
 Signed-out: native email/password login (magic link and password reset send email only).  
 Signed-in: three-tab shell.
 
-- **Home** — `WKWebView` loading bundled `PhotometryTools/Resources/assets/index.html` (TSP dashboard from totalservicepro-web). Falls back to `placeholder.html` if the entry file is missing. In-page calculator links still open the bundled HTML calculators.
+- **Home** — `WKWebView` of `https://repairplanet.net` with the Android session bridge (`tsp-auth-token`, `Android.getStoredSession`, `__tspRestoreAndroidSession`) and the user-agent token `TSPAndroid/1.4 TSPiOS/0.5.0`. The host allowlist follows Android 1.4 (repairplanet.net, Supabase, Netlify previews, Google/CDN hosts). Stripe Checkout and other non-allowlisted links open in Safari. Offline, or if the live origin cannot connect, Home falls back to bundled `index.html`.
 - **Calculators** — native SwiftUI photometry calculators (Fluence, Density, Wavelength, Duty Cycle, Average Power). Formulas match the bundled HTML.
 - **Settings** — version/build, sign out, opt-in Face ID / Touch ID unlock, Supabase config status.
 
@@ -49,11 +51,11 @@ with `KeychainLocalStorage` (not UserDefaults). The Android-compatible session J
 
 Without a local key the login screen explains setup and will not call Supabase.
 
-## HTML asset sync
+## HTML asset sync (offline fallback)
 
-Android hybrid UI lives in [totalservicepro-web](https://github.com/lasmart613/totalservicepro-web) at `app/src/main/assets/` (same tree Photometry_Tools bundles). The Next.js app under `web/` is **not** a WKWebView target.
+The primary UI is the live Next.js site. Bundled files are only for offline field use and the HTML calculators.
 
-Refresh bundled P0 screens:
+Android hybrid UI lives in [totalservicepro-web](https://github.com/lasmart613/totalservicepro-web) at `app/src/main/assets/`. Refresh the fallback copy with:
 
 ```bash
 Scripts/sync-web-assets.sh
@@ -63,8 +65,8 @@ Scripts/sync-web-assets.sh /path/to/totalservicepro-web
 
 The script:
 
-- Copies home/dashboard, schedule, reports, manuals placeholders, customer directory/profile, calculators, settings, and shared CSS/JS (`tsp.css`, `theme.js`, `web-compat.js`, `org-switcher.js`, `app-version.js`, `service-company-gate.js`).
-- Skips `pdfjs/`, bundled PDFs, paywall, marketplace, AI, estimates/invoices, and `old.service_schedule.html`.
+- Copies the offline shell: home/dashboard, schedule, reports, manuals placeholders, customer directory/profile, calculators, settings, and shared CSS/JS (`tsp.css`, `theme.js`, `web-compat.js`, `org-switcher.js`, `app-version.js`, `service-company-gate.js`).
+- Still skips `pdfjs/`, bundled PDFs, `paywall.html`, `marketplace.html`, `ai_assistant.html`, estimates/invoices, `parts_catalog.html`, profile pages, and `old.service_schedule.html`. Those screens load from repairplanet.net when the device is online. `pdf_viewer.html` stays skipped (PDFKit).
 - Strips hardcoded Supabase anon JWTs and replaces them with `window.TSP_CONFIG.supabaseAnonKey` (injected by `TSPWebView`).
 - Writes `Scripts/asset-sync-manifest.txt`.
 - Leaves `placeholder.html` as a safe fallback.
@@ -80,7 +82,7 @@ Confirmed against Photometry_Tools `MainActivity` (main + inventory):
 3. In-page navigation uses `?_s=` = base64(JSON of `access_token` + `refresh_token`).
 4. JS bridge is named `Android` (`saveSession`, `clearSession`, `getStoredSession`, `setBiometricEnabled` / `isBiometricEnabled` / `canUseBiometric`) so existing HTML Settings stay in sync with native.
 
-`WKWebView` injects `TSP_CONFIG` + the `Android` shim at document start, then calls `restoreSession` on `didFinish`.
+`WKWebView` injects `TSP_CONFIG` + the `Android` shim at document start, then calls `restoreSession` and `__tspRestoreAndroidSession` (the live site’s `AndroidSessionBridge`) on `didFinish`. A short retry also waits for that function to be installed by the page. `Android.openUrl` loads allowlisted repairplanet.net URLs in the web view and opens Stripe Checkout plus other external http(s) links in Safari. `Android.captureCardImage` / `openCamera` are stubs for a later card-OCR pass and do not open the camera.
 
 ## Manuals and report PDFs
 
@@ -133,7 +135,7 @@ Spot area uses millimeters ÷ 100 to get cm² (`π × (d÷2)² ÷ 100`, `s² ÷ 
 
 Validation copy matches the HTML toasts (empty energy, invalid pulse width, Off-Time **or** PPS, pulse wider than `1/PPS`, missing VBeam readings). Results update live when inputs are valid; **Calculate** shows the same error strings. Copy / Share is available on a completed result.
 
-`calculators_menu.html` and the individual HTML pages stay in the bundle for the TSP Home WebView. This tab does not replace those links.
+`calculators_menu.html` and the individual HTML pages stay in the bundle for offline fallback. This tab does not replace those pages. When Home is online, calculator links on the live site go to `https://repairplanet.net/calculators`.
 
 Check table + formula samples with `node Scripts/verify-calculator-parity.mjs`.
 
@@ -150,25 +152,27 @@ When the toggle is on and a Keychain session exists:
 
 `NSFaceIDUsageDescription` is set in `Info.plist`. HTML `Android.setBiometricEnabled` / `isBiometricEnabled` / `canUseBiometric` read and write the same native flag so Settings.html cannot disagree with the Settings tab.
 
-## P0 parity (this slice)
+## Soft beta (0.5.0)
 
-1. WKWebView shell: JS bridge, Keychain session, `restoreSession` / `?_s=` equivalent.
+1. Live WKWebView shell: `https://repairplanet.net`, host allowlist, Keychain session inject.
 2. Supabase auth: password, magic-link send, reset-email send, logout.
-3. Home dashboard HTML (signed-in only).
-4. Settings About version/build + sign out.
-5. ATS / HTTPS to Supabase (plus the CDN hosts the HTML already uses).
+3. Estimates, invoices, marketplace, parts, AI, notifications, and profiles come from the live site once the session bridge is signed in.
+4. Stripe Checkout opens in Safari. No invented Connect partner URL.
+5. Settings shows **0.5.0-beta** and the build number, plus sign out.
 6. Native photometry calculators (Fluence, Density, Wavelength, Duty Cycle, Average Power).
-7. Opt-in LocalAuthentication unlock (Face ID / Touch ID) of the Keychain session.
+7. Opt-in LocalAuthentication unlock (Face ID / Touch ID). Cancel does not sign out.
+8. Manuals and report export still use PDFKit.
 
-Still later: schedule/report CRUD polish, onboarding gate, StoreKit.
+TestFlight / Apple signing stay held. Still later: card OCR, APNs, StoreKit, AdMob.
 
 ## Out of scope
 
 - Peanut Beach Run (not in the Android repo)
 - AdMob
 - StoreKit / Play Billing
-- Apple signing credentials
-- Full feature parity (P1 marketplace, estimates/invoices, AI, profiles, etc.)
+- Apple signing credentials and TestFlight
+- Native card OCR (camera bridge is a stub only)
+- Invented Stripe Connect partner URLs
 
 ## Project layout
 
@@ -177,7 +181,8 @@ PhotometryTools.xcodeproj/     Xcode project + shared scheme + supabase-swift SP
 PhotometryTools/
   PhotometryToolsApp.swift     SwiftUI @main
   ContentView.swift            Home / Calculators / Settings tabs
-  Views/                       Login, root gate, Home WKWebView, native calculators, Settings
+  Views/                       Login, root gate, live Home WKWebView, native calculators, Settings
+  Web/LiveWebPolicy.swift      Host allowlist, Stripe → Safari, offline fallback rules
   Calculators/                 Photometry math + VBeam wavelength table (HTML parity)
   Auth/                        Keychain session, supabase-swift sign-in/out, LocalAuthentication gate
   Config/AppConfig.swift       Reads example-backed plist / xcconfig keys

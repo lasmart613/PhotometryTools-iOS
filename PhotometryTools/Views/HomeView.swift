@@ -1,14 +1,9 @@
 import SwiftUI
 
-/// Hosts the bundled Total Service Pro HTML shell (synced from totalservicepro-web).
+/// Live Total Service Pro site. Bundled HTML loads only when the device is offline.
 struct HomeView: View {
     var body: some View {
-        NavigationStack {
-            TSPWebView(resourceName: "index", subdirectory: "assets")
-                .ignoresSafeArea(edges: .bottom)
-                .navigationTitle("Home")
-                .navigationBarTitleDisplayMode(.inline)
-        }
+        TSPWebView(entry: .liveSite)
     }
 }
 
