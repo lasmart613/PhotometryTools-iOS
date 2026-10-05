@@ -1,18 +1,24 @@
+import Network
+import SafariServices
 import SwiftUI
 import WebKit
 
-/// Loads bundled TSP HTML and injects the Keychain session the way Android does:
-/// localStorage `tsp-auth-token`, `restoreSession(...)`, and optional `?_s=`.
+/// Home shell. Online, this is the live site (`https://repairplanet.net`) with the
+/// Android 1.4 session bridge. Bundled HTML is the offline / calculator fallback.
 struct TSPWebView: UIViewRepresentable {
+    enum Entry: Equatable {
+        case liveSite
+        case bundled(resource: String, subdirectory: String?)
+    }
+
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var biometric: BiometricSettings
     @EnvironmentObject private var unlock: BiometricUnlockController
 
-    var resourceName: String = "index"
-    var subdirectory: String? = "assets"
+    var entry: Entry = .liveSite
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(auth: auth, biometric: biometric, unlock: unlock)
+        Coordinator(auth: auth, biometric: biometric, unlock: unlock, entry: entry)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -27,18 +33,17 @@ struct TSPWebView: UIViewRepresentable {
         configuration.defaultWebpagePreferences = preferences
         configuration.userContentController = userContent
         configuration.websiteDataStore = .default()
+        configuration.applicationNameForUserAgent = AppConfig.webViewUserAgentToken
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
+        webView.allowsBackForwardNavigationGestures = true
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         context.coordinator.webView = webView
-        context.coordinator.loadBundledPage(
-            named: resourceName,
-            subdirectory: subdirectory,
-            in: webView
-        )
+        context.coordinator.loadInitial(in: webView)
         return webView
     }
 
@@ -52,16 +57,42 @@ struct TSPWebView: UIViewRepresentable {
         )
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         var auth: AuthService
         var biometric: BiometricSettings
         var unlock: BiometricUnlockController
+        let entry: TSPWebView.Entry
+        let reachability = NetworkReachability()
         weak var webView: WKWebView?
+        private var didOfferOfflineFallback = false
 
-        init(auth: AuthService, biometric: BiometricSettings, unlock: BiometricUnlockController) {
+        init(
+            auth: AuthService,
+            biometric: BiometricSettings,
+            unlock: BiometricUnlockController,
+            entry: TSPWebView.Entry
+        ) {
             self.auth = auth
             self.biometric = biometric
             self.unlock = unlock
+            self.entry = entry
+        }
+
+        func loadInitial(in webView: WKWebView) {
+            switch entry {
+            case .bundled(let resource, let subdirectory):
+                loadBundledPage(named: resource, subdirectory: subdirectory, in: webView)
+            case .liveSite:
+                let last = UserDefaults.standard
+                    .string(forKey: AppConfig.lastWebURLDefaultsKey)
+                    .flatMap(URL.init(string:))
+                switch LiveWebPolicy.startChoice(lastURL: last, networkAvailable: reachability.isOnline) {
+                case .remote(let url):
+                    webView.load(URLRequest(url: url))
+                case .bundled(let name):
+                    loadBundledPage(named: name, subdirectory: "assets", in: webView)
+                }
+            }
         }
 
         func syncBiometricFlags(enabled: Bool, canUse: Bool) {
@@ -107,17 +138,24 @@ struct TSPWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            if let url = webView.url, LiveWebPolicy.shouldRemember(url) {
+                UserDefaults.standard.set(url.absoluteString, forKey: AppConfig.lastWebURLDefaultsKey)
+            }
             Task { @MainActor in
                 syncBiometricFlags(enabled: biometric.isEnabled, canUse: biometric.canEvaluate)
                 guard let json = auth.sessionJSON, !json.isEmpty else { return }
                 let escaped = Self.escapeForSingleQuotedJS(json)
+                let stored = Self.escapeForSingleQuotedJS(TSPSessionJSON.localStorageValue(from: json))
                 let js = """
                 (function(){
                   try {
                     var raw = '\(escaped)';
                     window.__TSP_STORED_SESSION__ = raw;
-                    try { localStorage.setItem('tsp-auth-token', raw); } catch (e) {}
+                    try { localStorage.setItem('tsp-auth-token', '\(stored)'); } catch (e) {}
                     if (typeof restoreSession === 'function') { restoreSession(raw); }
+                    if (typeof window.__tspRestoreAndroidSession === 'function') {
+                      window.__tspRestoreAndroidSession(raw);
+                    }
                   } catch (e) {}
                 })();
                 """
@@ -134,50 +172,59 @@ struct TSPWebView: UIViewRepresentable {
                 decisionHandler(.allow)
                 return
             }
-
-            if isPDFViewerNavigation(url) {
-                decisionHandler(.cancel)
-                TSPPDFBridge.shared.handlePDFViewerNavigation(url)
-                return
-            }
-
-            if let scheme = url.scheme, scheme == "http" || scheme == "https" {
-                let isMainFrame = navigationAction.targetFrame?.isMainFrame != false
-                if isMainFrame && (url.pathExtension.lowercased() == "pdf"
-                    || url.path.lowercased().contains(".pdf")) {
-                    decisionHandler(.cancel)
-                    Task { @MainActor in
-                        do {
-                            _ = try await TSPPDFBridge.shared.openOrShare(
-                                spec: ["url": url.absoluteString, "title": url.lastPathComponent],
-                                share: false
-                            )
-                        } catch {
-                            PDFHost.presentAlert(title: "Could not open PDF", message: error.localizedDescription)
-                        }
-                    }
-                    return
-                }
-                if url.host?.contains("supabase.co") == true
-                    || url.host?.contains("jsdelivr.net") == true
-                    || url.host?.contains("googleapis.com") == true
-                    || url.host?.contains("gstatic.com") == true
-                    || url.host?.contains("cdnjs.cloudflare.com") == true {
-                    decisionHandler(.allow)
-                    return
-                }
-                UIApplication.shared.open(url)
-                decisionHandler(.cancel)
-                return
-            }
-
-            decisionHandler(.allow)
+            let isMainFrame = navigationAction.targetFrame?.isMainFrame != false
+            let decision = LiveWebPolicy.decide(
+                url: url,
+                isMainFrame: isMainFrame,
+                networkAvailable: reachability.isOnline,
+                bundleContains: Self.bundleContains
+            )
+            perform(decision, original: url, in: webView, fromNavigation: true, decisionHandler: decisionHandler)
         }
 
-        private func isPDFViewerNavigation(_ url: URL) -> Bool {
-            let name = url.lastPathComponent.lowercased()
-            if name.hasPrefix("pdf_viewer.html") { return true }
-            return url.path.lowercased().contains("/pdf_viewer.html")
+        func webView(
+            _ webView: WKWebView,
+            createWebViewWith configuration: WKWebViewConfiguration,
+            for navigationAction: WKNavigationAction,
+            windowFeatures: WKWindowFeatures
+        ) -> WKWebView? {
+            guard let url = navigationAction.request.url else { return nil }
+            let decision = LiveWebPolicy.decide(
+                url: url,
+                isMainFrame: true,
+                networkAvailable: reachability.isOnline,
+                bundleContains: Self.bundleContains
+            )
+            perform(decision, original: url, in: webView, fromNavigation: false, decisionHandler: nil)
+            return nil
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            runJavaScriptAlertPanelWithMessage message: String,
+            initiatedByFrame frame: WKFrameInfo,
+            completionHandler: @escaping () -> Void
+        ) {
+            Task { @MainActor in
+                guard let host = PDFHost.topViewController() else {
+                    completionHandler()
+                    return
+                }
+                let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
+                host.present(alert, animated: true)
+            }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+            initiatedBy frame: WKFrameInfo,
+            type: WKMediaCaptureType,
+            decisionHandler: @escaping (WKPermissionDecision) -> Void
+        ) {
+            // Camera OCR is Phase 1.5. Deny capture so the site does not prompt.
+            decisionHandler(.deny)
         }
 
         func webView(
@@ -185,13 +232,76 @@ struct TSPWebView: UIViewRepresentable {
             didFailProvisionalNavigation navigation: WKNavigation!,
             withError error: Error
         ) {
-            if let comingSoon = Bundle.main.url(
-                forResource: "coming_soon",
-                withExtension: "html",
-                subdirectory: "assets"
-            ) {
-                webView.loadFileURL(comingSoon, allowingReadAccessTo: comingSoon.deletingLastPathComponent())
+            let ns = error as NSError
+            if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
+            guard LiveWebPolicy.isConnectivityFailure(error), !didOfferOfflineFallback else { return }
+            let failing = (ns.userInfo[NSURLErrorFailingURLErrorKey] as? URL) ?? webView.url
+            if let failing, failing.isFileURL { return }
+            if let failing, !LiveWebPolicy.isProduction(failing) { return }
+            didOfferOfflineFallback = true
+            loadBundledPage(named: "index", subdirectory: "assets", in: webView)
+        }
+
+        private func perform(
+            _ decision: LiveWebPolicy.Navigation,
+            original: URL,
+            in webView: WKWebView,
+            fromNavigation: Bool,
+            decisionHandler: ((WKNavigationActionPolicy) -> Void)?
+        ) {
+            switch decision {
+            case .allow:
+                if fromNavigation {
+                    decisionHandler?(.allow)
+                } else if let scheme = original.scheme?.lowercased(),
+                          scheme == "about" || scheme == "blob" || scheme == "data" {
+                    // `window.open('')` print previews must not replace the live page.
+                } else if original.isFileURL {
+                    webView.loadFileURL(original, allowingReadAccessTo: original.deletingLastPathComponent())
+                } else {
+                    webView.load(URLRequest(url: original))
+                }
+            case .load(let url):
+                decisionHandler?(.cancel)
+                if url.isFileURL {
+                    webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+                } else {
+                    webView.load(URLRequest(url: url))
+                }
+            case .safari(let url):
+                decisionHandler?(.cancel)
+                Task { @MainActor in SafariPresenter.open(url) }
+            case .external(let url):
+                decisionHandler?(.cancel)
+                Task { @MainActor in UIApplication.shared.open(url) }
+            case .pdf(let url):
+                decisionHandler?(.cancel)
+                Task { @MainActor in
+                    do {
+                        _ = try await TSPPDFBridge.shared.openOrShare(
+                            spec: ["url": url.absoluteString, "title": url.lastPathComponent],
+                            share: false
+                        )
+                    } catch {
+                        PDFHost.presentAlert(title: "Could not open PDF", message: error.localizedDescription)
+                    }
+                }
+            case .pdfViewer(let url):
+                decisionHandler?(.cancel)
+                TSPPDFBridge.shared.handlePDFViewerNavigation(url)
+            case .bundled(let name):
+                decisionHandler?(.cancel)
+                loadBundledPage(named: name, subdirectory: "assets", in: webView)
+            case .blocked(let message):
+                decisionHandler?(.cancel)
+                Task { @MainActor in
+                    PDFHost.presentAlert(title: "Total Service Pro", message: message)
+                }
             }
+        }
+
+        private static func bundleContains(_ name: String) -> Bool {
+            Bundle.main.url(forResource: name, withExtension: "html", subdirectory: "assets") != nil
         }
 
         func userContentController(
@@ -234,9 +344,16 @@ struct TSPWebView: UIViewRepresentable {
                 biometric.setEnabled(enabled)
                 syncBiometricFlags(enabled: biometric.isEnabled, canUse: biometric.canEvaluate)
             case "openUrl":
-                if let url = URL(string: text) {
-                    UIApplication.shared.open(url)
-                }
+                guard let url = URL(string: text), let webView else { return }
+                let decision = LiveWebPolicy.decide(
+                    url: url,
+                    isMainFrame: true,
+                    networkAvailable: reachability.isOnline,
+                    bundleContains: Self.bundleContains
+                )
+                perform(decision, original: url, in: webView, fromNavigation: false, decisionHandler: nil)
+            case "captureCardImage", "openCamera":
+                reply(requestId: requestId, error: "Card capture is not available in this beta.")
             case "goBack":
                 if webView?.canGoBack == true {
                     webView?.goBack()
@@ -426,6 +543,8 @@ struct TSPWebView: UIViewRepresentable {
                 canUseBiometric: function() { return !!window.__TSP_CAN_BIOMETRIC__; },
                 goBack: function() { post('goBack', ''); },
                 openUrl: function(url) { post('openUrl', url); },
+                captureCardImage: function() { return invoke('captureCardImage', {}); },
+                openCamera: function() { return invoke('openCamera', {}); },
                 showLoginPopup: function() { post('showLoginPopup', ''); },
                 getExitConfirmEnabled: function() { return true; },
                 setExitConfirmEnabled: function() {},
@@ -460,6 +579,20 @@ struct TSPWebView: UIViewRepresentable {
                 getPremiumStatus: function() { return false; },
                 setPremiumStatus: function() {}
               };
+              (function pumpSession() {
+                var tries = 0;
+                function tick() {
+                  tries += 1;
+                  var raw = window.__TSP_STORED_SESSION__ || '';
+                  if (!raw) return;
+                  if (typeof window.__tspRestoreAndroidSession === 'function') {
+                    try { window.__tspRestoreAndroidSession(raw); } catch (e) {}
+                    return;
+                  }
+                  if (tries < 100) setTimeout(tick, 50);
+                }
+                setTimeout(tick, 0);
+              })();
             })();
             """
         }
@@ -486,10 +619,65 @@ struct TSPWebView: UIViewRepresentable {
           <title>TSP shell</title>
         </head>
         <body style="font-family:-apple-system,sans-serif;padding:24px;background:#0f1419;color:#e8eef4;">
-          <h1>Assets not found</h1>
-          <p>Expected bundled <code>Resources/assets/index.html</code>. Run <code>Scripts/sync-web-assets.sh</code>.</p>
+          <h1>Offline shell</h1>
+          <p>Could not load repairplanet.net and the bundled fallback is missing. Reconnect, or run <code>Scripts/sync-web-assets.sh</code>.</p>
         </body>
         </html>
         """
+    }
+}
+
+/// SFSafariViewController for Stripe Checkout and other links that must not
+/// stay inside the live WKWebView. No Connect partner URL is invented here.
+@MainActor
+enum SafariPresenter {
+    static func open(_ url: URL) {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+            UIApplication.shared.open(url)
+            return
+        }
+        guard let host = PDFHost.topViewController() else {
+            UIApplication.shared.open(url)
+            return
+        }
+        let safari = SFSafariViewController(url: url)
+        safari.dismissButtonStyle = .done
+        safari.modalPresentationStyle = .pageSheet
+        host.present(safari, animated: true)
+    }
+}
+
+/// Best-effort reachability. An unresolved path is treated as online so the
+/// first paint tries repairplanet.net; a connectivity error still falls back.
+final class NetworkReachability: @unchecked Sendable {
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(label: "tsp.network")
+    private let lock = NSLock()
+    private var online = true
+    private var resolved = false
+
+    var isOnline: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return resolved ? online : true
+    }
+
+    init() {
+        let ready = DispatchSemaphore(value: 0)
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
+            self.lock.lock()
+            let first = !self.resolved
+            self.online = path.status == .satisfied
+            self.resolved = true
+            self.lock.unlock()
+            if first { ready.signal() }
+        }
+        monitor.start(queue: queue)
+        _ = ready.wait(timeout: .now() + .milliseconds(400))
+    }
+
+    deinit {
+        monitor.cancel()
     }
 }

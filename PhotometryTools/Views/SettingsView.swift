@@ -6,10 +6,6 @@ struct SettingsView: View {
     @State private var biometricEnabled = false
     @State private var isUpdatingBiometric = false
 
-    private var shortVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
-    }
-
     private var buildNumber: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
     }
@@ -22,10 +18,13 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section("About") {
-                    LabeledContent("Version", value: shortVersion)
+                    LabeledContent("Version", value: AppConfig.marketingLabel)
                     LabeledContent("Build", value: buildNumber)
                     LabeledContent("App", value: "PhotometryTools")
                     LabeledContent("Brand", value: "Total Service Pro")
+                    Text("Soft beta \(AppConfig.marketingLabel). TestFlight is held. Home loads repairplanet.net.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Account") {
@@ -68,7 +67,7 @@ struct SettingsView: View {
                 }
 
                 Section("Out of scope") {
-                    Text("Peanut Beach Run, AdMob, StoreKit, signing credentials, and full feature parity are not included.")
+                    Text("AdMob, StoreKit, Apple signing, TestFlight, and card OCR are not in this beta. Stripe Checkout opens in Safari. Connect partner links are not invented here.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

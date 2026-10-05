@@ -11,6 +11,9 @@
 		A00000000000000000000031 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000011 /* ContentView.swift */; };
 		A00000000000000000000032 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* HomeView.swift */; };
 		A00000000000000000000033 /* TSPWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* TSPWebView.swift */; };
+		A000000000000000000000C2 /* LiveWebPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C0 /* LiveWebPolicy.swift */; };
+		A00000000000000000000099 /* SafariServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000089 /* SafariServices.framework */; };
+		A0000000000000000000009A /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A0000000000000000000008A /* Network.framework */; };
 		A00000000000000000000034 /* CalculatorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000014 /* CalculatorsView.swift */; };
 		A000000000000000000000B0 /* PhotometryMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A0 /* PhotometryMath.swift */; };
 		A000000000000000000000B1 /* VBeamWavelengthTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A1 /* VBeamWavelengthTable.swift */; };
@@ -50,6 +53,9 @@
 		A00000000000000000000011 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A00000000000000000000012 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A00000000000000000000013 /* TSPWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TSPWebView.swift; sourceTree = "<group>"; };
+		A000000000000000000000C0 /* LiveWebPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveWebPolicy.swift; sourceTree = "<group>"; };
+		A00000000000000000000089 /* SafariServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SafariServices.framework; path = System/Library/Frameworks/SafariServices.framework; sourceTree = SDKROOT; };
+		A0000000000000000000008A /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
 		A00000000000000000000014 /* CalculatorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorsView.swift; sourceTree = "<group>"; };
 		A000000000000000000000A0 /* PhotometryMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotometryMath.swift; sourceTree = "<group>"; };
 		A000000000000000000000A1 /* VBeamWavelengthTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VBeamWavelengthTable.swift; sourceTree = "<group>"; };
@@ -93,6 +99,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A0000000000000000000003B /* WebKit.framework in Frameworks */,
+				A00000000000000000000099 /* SafariServices.framework in Frameworks */,
+				A0000000000000000000009A /* Network.framework in Frameworks */,
 				A00000000000000000000096 /* PDFKit.framework in Frameworks */,
 				A00000000000000000000098 /* LocalAuthentication.framework in Frameworks */,
 				A00000000000000000000072 /* Supabase in Frameworks */,
@@ -127,6 +135,7 @@
 				A00000000000000000000011 /* ContentView.swift */,
 				A0000000000000000000000A /* Views */,
 				A00000000000000000000023 /* Calculators */,
+				A00000000000000000000024 /* Web */,
 				A00000000000000000000021 /* Auth */,
 				A0000000000000000000000B /* Config */,
 				A0000000000000000000000C /* Supabase */,
@@ -155,6 +164,14 @@
 				A00000000000000000000016 /* SettingsView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000024 /* Web */ = {
+			isa = PBXGroup;
+			children = (
+				A000000000000000000000C0 /* LiveWebPolicy.swift */,
+			);
+			path = Web;
 			sourceTree = "<group>";
 		};
 		A0000000000000000000000B /* Config */ = {
@@ -230,6 +247,8 @@
 			isa = PBXGroup;
 			children = (
 				A00000000000000000000020 /* WebKit.framework */,
+				A00000000000000000000089 /* SafariServices.framework */,
+				A0000000000000000000008A /* Network.framework */,
 				A00000000000000000000086 /* PDFKit.framework */,
 				A00000000000000000000088 /* LocalAuthentication.framework */,
 			);
@@ -317,6 +336,7 @@
 				A00000000000000000000031 /* ContentView.swift in Sources */,
 				A00000000000000000000032 /* HomeView.swift in Sources */,
 				A00000000000000000000033 /* TSPWebView.swift in Sources */,
+				A000000000000000000000C2 /* LiveWebPolicy.swift in Sources */,
 				A00000000000000000000034 /* CalculatorsView.swift in Sources */,
 				A000000000000000000000B0 /* PhotometryMath.swift in Sources */,
 				A000000000000000000000B1 /* VBeamWavelengthTable.swift in Sources */,
@@ -476,7 +496,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -492,7 +512,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.photometrytools.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -511,7 +531,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -527,7 +547,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.photometrytools.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
