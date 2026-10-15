@@ -1,0 +1,8 @@
+// Copy to Signing.xcconfig (gitignored) after Apple Developer enrollment.
+// Membership details on developer.apple.com/account show the 10-character Team ID.
+// Replace the placeholder. Do not commit Signing.xcconfig or a real Team ID.
+//
+// The PhotometryTools target reads this as DEVELOPMENT_TEAM = $(APPLE_TEAM_ID).
+// Until this file exists, the team stays empty and signing stays automatic.
+
+APPLE_TEAM_ID = YOUR_APPLE_TEAM_ID

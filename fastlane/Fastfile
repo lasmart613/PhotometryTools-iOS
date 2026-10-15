@@ -1,0 +1,13 @@
+# Optional wrapper around Scripts/export-testflight.sh.
+# Archives the Release configuration and exports an IPA. Does not upload.
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Release archive and IPA export. Does not upload to TestFlight."
+  lane :export_ipa do
+    UI.important("This lane stops at a local IPA. It does not upload to App Store Connect.")
+    script = File.expand_path("../Scripts/export-testflight.sh", FastlaneCore::FastlaneFolder.path)
+    sh("bash", script)
+  end
+end

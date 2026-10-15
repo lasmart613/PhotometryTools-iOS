@@ -1,2 +1,4 @@
-// Optional local secrets. Missing file is OK (Xcode #include?).
+// Archive uses this configuration (PhotometryTools scheme → Archive).
+// Optional local secrets and Apple Team ID. Missing files are OK (Xcode #include?).
 #include? "Secrets.xcconfig"
+#include? "Signing.xcconfig"
