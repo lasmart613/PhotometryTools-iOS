@@ -405,7 +405,7 @@
             data.notes = loadedNotes;
             orgData = data;
             populateForm(data);
-            if (notesError) markNotesUnavailable();
+            if (!notesLoaded) markNotesUnavailable();
             renderSpecialtyChips();
             await Promise.all([loadEquipment(), loadSites(), loadContacts(), loadHistory(), loadBilling()]);
         } catch(e) {
