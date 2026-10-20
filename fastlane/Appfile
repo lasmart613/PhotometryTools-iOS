@@ -1,0 +1,5 @@
+# Placeholders only. The real Team ID belongs in the environment or in
+# gitignored Signing.xcconfig. This file does not upload a build.
+
+app_identifier("com.photometrytools.ios")
+team_id(ENV.fetch("APPLE_TEAM_ID", "YOUR_APPLE_TEAM_ID"))

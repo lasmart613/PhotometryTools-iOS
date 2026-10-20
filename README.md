@@ -2,7 +2,7 @@
 
 SwiftUI + WKWebView shell for the iOS port of **Total Service Pro / PhotometryTools**.
 
-Version **0.5.0** (build **4**), shown in Settings as **0.5.0-beta**. TestFlight is still held. This repo does not include Apple signing credentials.
+Version **0.5.0** (build **5**), shown in Settings as **0.5.0-beta**. The first TestFlight upload is ready once an Apple Developer membership exists. Steps: [docs/TESTFLIGHT.md](docs/TESTFLIGHT.md). This repo does not include Apple signing credentials.
 
 Signed-in **Home** loads the live site `https://repairplanet.net` (same idea as Android 1.4). Bundled HTML under `Resources/assets/` is the offline and calculator fallback, not the primary UI. Native Calculators, PDFKit manuals, and opt-in biometric unlock stay in the shell.
 
@@ -22,7 +22,7 @@ Related inventory (Android screens, Supabase contracts, P0/P1/P2): [Photometry_T
 3. Open `PhotometryTools.xcodeproj` (File → Open, or double-click in Finder).
 4. Let Xcode resolve the **supabase-swift** package (`https://github.com/supabase/supabase-swift.git`, 2.55+).
 5. Select the **PhotometryTools** shared scheme and an iOS 17+ simulator or device.
-6. Run (⌘R). Signing: pick your team in the PhotometryTools target if you run on a device. No certificates or provisioning profiles are stored here.
+6. Run (⌘R). Signing stays automatic. Copy `Signing.xcconfig.example` to `Signing.xcconfig` and set `APPLE_TEAM_ID`, or pick the team in Xcode when you run on a device. Do not commit the Team ID, certificates, or profiles.
 
 Signed-out: native email/password login (magic link and password reset send email only).  
 Signed-in: three-tab shell.
@@ -166,7 +166,7 @@ Signed-in Customers can add or update a customer from a business card. Recogniti
 
 The page buttons call `Android.captureCardImage`. A native **Scan card** / **Update from card** button is also shown on those screens when the page button is not in the DOM. This flow does not show ads.
 
-`NSCameraUsageDescription` is set in `Info.plist`.
+`NSCameraUsageDescription` is set in `Info.plist`. The privacy manifest is `PhotometryTools/PrivacyInfo.xcprivacy`. App Store Connect answers are in [docs/TESTFLIGHT.md](docs/TESTFLIGHT.md).
 
 ### App Privacy nutrition labels
 
@@ -187,14 +187,14 @@ Check the parser with `Scripts/verify-card-parser.sh`.
 8. Manuals and report export still use PDFKit.
 9. On-device business-card scan (Vision) with confirm-before-save and an offline draft queue.
 
-TestFlight / Apple signing stay held. Still later: APNs, StoreKit, AdMob.
+Apple credentials stay out of git. The upload checklist is [docs/TESTFLIGHT.md](docs/TESTFLIGHT.md). Still later: APNs, StoreKit, AdMob.
 
 ## Out of scope
 
 - Peanut Beach Run (not in the Android repo)
 - AdMob
 - StoreKit / Play Billing
-- Apple signing credentials and TestFlight
+- Apple signing credentials, Team IDs, and uploading builds (see [docs/TESTFLIGHT.md](docs/TESTFLIGHT.md))
 - Invented Stripe Connect partner URLs
 
 ## Project layout
@@ -213,11 +213,17 @@ PhotometryTools/
   Supabase/                    SupabaseClient factory (KeychainLocalStorage)
   PDF/                         get-manual-url client, PDFKit viewer, report HTML→PDF
   Resources/assets/            Synced TSP HTML/CSS/JS + placeholder fallback
-  Info.plist                   Merged keys (SUPABASE_* from xcconfig, NSFaceIDUsageDescription)
+  Info.plist                   Camera and Face ID usage strings, exempt-encryption flag, SUPABASE_* keys
+  PrivacyInfo.xcprivacy        Privacy manifest (auth, Keychain, camera OCR, repairplanet.net)
 Scripts/sync-web-assets.sh     Refresh assets from totalservicepro-web
+Scripts/export-testflight.sh   Release archive and IPA export (no upload)
+Scripts/verify-testflight-ready.sh   Privacy, icon, version, and export placeholder checks
 Scripts/verify-calculator-parity.mjs   HTML vs native table/formula check
 Scripts/verify-card-parser.sh  Business-card field parser checks
 Scripts/secret-scan.sh         Fail if secrets landed in git
+docs/TESTFLIGHT.md             First-upload checklist
+fastlane/ExportOptions.plist   Placeholder team id, destination export
+Signing.xcconfig.example       APPLE_TEAM_ID placeholder
 Config.example.plist
 Secrets.xcconfig.example
 ```

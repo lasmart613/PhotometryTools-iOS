@@ -50,6 +50,7 @@ fastlane/test_output
 
 # Secrets — never commit real anon keys or signing material
 Secrets.xcconfig
+Signing.xcconfig
 Config.plist
 *.p12
 *.cer
