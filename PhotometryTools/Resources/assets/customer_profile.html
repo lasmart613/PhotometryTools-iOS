@@ -375,6 +375,8 @@
 
     let orgId           = null;   // org ID from URL param or passed state
     let orgData         = null;
+    let notesLoaded     = false;  // true only when org_private_fields returned a row
+    let loadedNotes     = null;
     let selectedSpecialties = [];
     let currentTab      = 'info';
 
@@ -393,10 +395,14 @@
         try {
             const { data } = await supabaseClient
                 .from('organizations')
-                .select('*')
+                .select('id, name, biz_type, phone, email, address, city, state, zip, website, specialties')
                 .eq('id', orgId)
                 .maybeSingle();
             if (!data) { showToast('Customer not found or access denied', 'error'); return; }
+            const { data: priv } = await supabaseClient.rpc('org_private_fields', { p_org_id: Number(orgId) });
+            notesLoaded = priv != null;
+            loadedNotes = priv?.notes ?? null;
+            data.notes = loadedNotes;
             orgData = data;
             populateForm(data);
             renderSpecialtyChips();
@@ -642,11 +648,11 @@
         if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
 
         try {
+            const newNotes = document.getElementById('custNotes').value.trim();
             const updates = {
                 name:         document.getElementById('custName').value.trim(),
                 biz_type:     document.getElementById('custBizType').value,
                 website:      document.getElementById('custWebsite').value.trim(),
-                notes:        document.getElementById('custNotes').value.trim(),
                 phone:        document.getElementById('custPhone').value.trim(),
                 email:        document.getElementById('custEmail').value.trim(),
                 address:      document.getElementById('custAddress').value.trim(),
@@ -656,12 +662,14 @@
                 specialties:  selectedSpecialties,
                 updated_at:   new Date().toISOString()
             };
+            if (notesLoaded && newNotes !== (loadedNotes ?? '')) updates.notes = newNotes || null;
 
             const { error } = await supabaseClient
                 .from('organizations')
                 .update(updates)
                 .eq('id', orgId);
             if (error) throw error;
+            if (Object.prototype.hasOwnProperty.call(updates, 'notes')) loadedNotes = updates.notes;
 
             document.getElementById('heroName').textContent    = updates.name;
             document.getElementById('headerTitle').textContent = updates.name;

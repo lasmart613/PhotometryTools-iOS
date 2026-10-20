@@ -169,7 +169,7 @@
 
     async function loadCustomers() {
         try {
-            const {data:orgs,error}=await supabaseClient.from('organizations').select('*').eq('type','customer').eq('is_active',true).order('name');
+            const {data:orgs,error}=await supabaseClient.from('organizations').select('id, name, type, biz_type, phone, email, address, city, state, zip, website, logo_url, supported_brands, is_active, created_at').eq('type','customer').eq('is_active',true).order('name');
             if(error) throw error;
             const {data:equip}=await supabaseClient.from('equipment').select('organization_id').neq('status','Decommissioned');
             const {data:tickets}=await supabaseClient.from('service_tickets').select('organization_id,status').not('status','in','("Completed","Cancelled")');
@@ -245,7 +245,7 @@
         const name=document.getElementById('newName').value.trim();
         if(!name){showToast('Business name is required','error');return;}
         try {
-            const{data,error}=await supabaseClient.from('organizations').insert([{name,type:'customer',created_by:(await supabaseClient.auth.getUser()).data.user?.id||null,biz_type:document.getElementById('newBizType').value||null,phone:document.getElementById('newPhone').value.trim()||null,email:document.getElementById('newEmail').value.trim()||null,address:document.getElementById('newAddress').value.trim()||null,city:document.getElementById('newCity').value.trim()||null,state:document.getElementById('newState').value.trim().toUpperCase()||null,website:document.getElementById('newWebsite').value.trim()||null}]).select().single();
+            const{data,error}=await supabaseClient.from('organizations').insert([{name,type:'customer',created_by:(await supabaseClient.auth.getUser()).data.user?.id||null,biz_type:document.getElementById('newBizType').value||null,phone:document.getElementById('newPhone').value.trim()||null,email:document.getElementById('newEmail').value.trim()||null,address:document.getElementById('newAddress').value.trim()||null,city:document.getElementById('newCity').value.trim()||null,state:document.getElementById('newState').value.trim().toUpperCase()||null,website:document.getElementById('newWebsite').value.trim()||null}]).select('id, name').single();
             if(error)throw error;
             showToast('✓ '+name+' added','success'); closeAddModal();
             setTimeout(()=>navigateTo(`customer_profile.html?id=${data.id}`),800);
