@@ -409,7 +409,7 @@
         if (meta.last_name)  document.getElementById('lastName').value  = meta.last_name;
 
         // Load existing company profile if any (maybeSingle — won't throw if missing)
-        const { data: profile } = await supabaseClient.from('user_profiles').select('*, organizations(*)').eq('id', user.id).maybeSingle();
+        const { data: profile } = await supabaseClient.from('user_profiles').select('*, organizations(id, name, address, city, state, phone, website, logo_url, supported_brands)').eq('id', user.id).maybeSingle();
 
         // Already completed — skip straight to dashboard, don't show onboarding again
         if (profile?.onboarding_completed === true) {

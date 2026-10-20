@@ -2,7 +2,7 @@
 
 SwiftUI + WKWebView shell for the iOS port of **Total Service Pro / PhotometryTools**.
 
-Version **0.5.0** (build **3**), shown in Settings as **0.5.0-beta**. TestFlight is still held. This repo does not include Apple signing credentials.
+Version **0.5.0** (build **4**), shown in Settings as **0.5.0-beta**. TestFlight is still held. This repo does not include Apple signing credentials.
 
 Signed-in **Home** loads the live site `https://repairplanet.net` (same idea as Android 1.4). Bundled HTML under `Resources/assets/` is the offline and calculator fallback, not the primary UI. Native Calculators, PDFKit manuals, and opt-in biometric unlock stay in the shell.
 

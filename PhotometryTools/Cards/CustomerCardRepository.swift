@@ -88,7 +88,7 @@ enum CustomerCardRepository {
                     let created = try await write(
                         method: "POST",
                         table: "organizations",
-                        query: [],
+                        query: [URLQueryItem(name: "select", value: "id")],
                         body: CustomerCardPayload.organizationInsert(fields: fields, userID: creds.userID),
                         prefer: "return=representation",
                         credentials: creds
