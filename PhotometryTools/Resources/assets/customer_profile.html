@@ -195,7 +195,7 @@
                 <div class="field"><label>Website</label><input type="url" id="custWebsite" placeholder="https://"></div>
             </div>
             <div class="field-row">
-                <div class="field"><label>Notes</label><textarea id="custNotes" placeholder="Account notes, preferences, access details..."></textarea></div>
+                <div class="field"><label>Notes</label><textarea id="custNotes" placeholder="Account notes, preferences, access details..."></textarea><div id="custNotesNotice" hidden style="font-size:12px;color:var(--text-muted);margin-top:6px;"></div></div>
             </div>
         </div>
     </div>
@@ -399,16 +399,27 @@
                 .eq('id', orgId)
                 .maybeSingle();
             if (!data) { showToast('Customer not found or access denied', 'error'); return; }
-            const { data: priv } = await supabaseClient.rpc('org_private_fields', { p_org_id: Number(orgId) });
-            notesLoaded = priv != null;
-            loadedNotes = priv?.notes ?? null;
+            const { data: priv, error: notesError } = await supabaseClient.rpc('org_private_fields', { p_org_id: Number(orgId) });
+            notesLoaded = !notesError && priv != null;
+            loadedNotes = notesError ? null : (priv?.notes ?? null);
             data.notes = loadedNotes;
             orgData = data;
             populateForm(data);
+            if (notesError) markNotesUnavailable();
             renderSpecialtyChips();
             await Promise.all([loadEquipment(), loadSites(), loadContacts(), loadHistory(), loadBilling()]);
         } catch(e) {
             showToast('Load failed: ' + e.message, 'error');
+        }
+    }
+
+    function markNotesUnavailable() {
+        const notes = document.getElementById('custNotes');
+        const notice = document.getElementById('custNotesNotice');
+        if (notes) { notes.disabled = true; notes.value = ''; }
+        if (notice) {
+            notice.hidden = false;
+            notice.textContent = "Notes couldn't load, and edits won't be saved.";
         }
     }
 
@@ -662,7 +673,7 @@
                 specialties:  selectedSpecialties,
                 updated_at:   new Date().toISOString()
             };
-            if (notesLoaded && newNotes !== (loadedNotes ?? '')) updates.notes = newNotes || null;
+            if (notesLoaded && newNotes !== (loadedNotes ?? '').trim()) updates.notes = newNotes || null;
 
             const { error } = await supabaseClient
                 .from('organizations')
